@@ -14,8 +14,7 @@ import * as THREE from "three";
 /*  hovering the headline works too.                                             */
 /* ========================================================================== */
 
-const DISK_COUNT = 15000;
-const RING_COUNT = 3000;
+const DISK_COUNT = 17000;
 const DUST_COUNT = 5200;
 const STAR_COUNT = 1800;
 
@@ -39,6 +38,8 @@ const diskVert = /* glsl */ `
   uniform float uSize;
   uniform float uPixelRatio;
   uniform float uHover;
+  uniform float uSpeedMul;    // how fast this band circulates
+  uniform float uClump;       // 0..1 amount of travelling density variation
   uniform vec3 uPointer;      // cursor projected onto the disk plane
   uniform float uReduced;
 
@@ -54,7 +55,7 @@ const diskVert = /* glsl */ `
   void main() {
     float t = uReduced > 0.5 ? 0.0 : uTime;
 
-    float ang = aAngle + t * aSpeed;
+    float ang = aAngle + t * aSpeed * uSpeedMul;
     vec3 pos = vec3(cos(ang) * aRadius, aHeight, sin(ang) * aRadius);
 
     // Cursor stirs the disk: nearby atoms get a swirl + radial kick.
@@ -75,7 +76,9 @@ const diskVert = /* glsl */ `
     // Inner edge is hotter; the side rotating toward us is Doppler-boosted.
     vTemp = smoothstep(3.7, 0.95, aRadius);
     float doppler = 0.55 + 0.45 * smoothstep(0.4, -1.0, sin(ang));
-    vBright = mix(0.4, 1.15, vTemp) * doppler + infl * 0.6;
+    // travelling clumps so the band visibly circulates
+    float clump = 1.0 + uClump * 0.85 * sin(ang * 5.0 - aAngle * 3.0 + aRadius * 2.0);
+    vBright = mix(0.4, 1.15, vTemp) * doppler * clump + infl * 0.6;
   }
 `;
 
@@ -131,12 +134,16 @@ function useDiskAttributes(count: number, rInner: number, rOuter: number, thin: 
 function DiskPoints({
   attrs,
   size,
+  speedMul,
+  clump,
   reduced,
   pointerWorld,
   hover,
 }: {
   attrs: ReturnType<typeof useDiskAttributes>;
   size: number;
+  speedMul: number;
+  clump: number;
   reduced: boolean;
   pointerWorld: React.MutableRefObject<THREE.Vector3>;
   hover: React.MutableRefObject<number>;
@@ -147,6 +154,8 @@ function DiskPoints({
     () => ({
       uTime: { value: 0 },
       uSize: { value: size },
+      uSpeedMul: { value: speedMul },
+      uClump: { value: clump },
       uPixelRatio: {
         value:
           typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 2) : 1,
@@ -155,7 +164,7 @@ function DiskPoints({
       uPointer: { value: new THREE.Vector3() },
       uReduced: { value: reduced ? 1 : 0 },
     }),
-    [reduced, size],
+    [reduced, size, speedMul, clump],
   );
 
   useFrame((_, delta) => {
@@ -198,25 +207,102 @@ function AccretionDisk({
   pointerWorld: React.MutableRefObject<THREE.Vector3>;
   hover: React.MutableRefObject<number>;
 }) {
-  const disk = useDiskAttributes(DISK_COUNT, 1.15, 3.85, 0.03);
-  const ring = useDiskAttributes(RING_COUNT, 0.95, 1.35, 0.012);
+  const disk = useDiskAttributes(DISK_COUNT, 1.5, 4.1, 0.03);
   return (
-    <>
-      <DiskPoints
-        attrs={disk}
-        size={0.85}
-        reduced={reduced}
-        pointerWorld={pointerWorld}
-        hover={hover}
+    <DiskPoints
+      attrs={disk}
+      size={0.9}
+      speedMul={1.3}
+      clump={0.5}
+      reduced={reduced}
+      pointerWorld={pointerWorld}
+      hover={hover}
+    />
+  );
+}
+
+/* --------------------------- photon ring -------------------------------- */
+/*  A near-circular glow just outside the shadow (light bent around the hole).  */
+/*  Bright segments sweep around it so it reads as matter circulating, not a    */
+/*  static line — and it always sits outside the shadow, never inside it.       */
+
+const photonFrag = /* glsl */ `
+  varying vec2 vUv;
+  uniform float uTime;
+  uniform float uHover;
+  uniform float uReduced;
+
+  void main() {
+    float t = uReduced > 0.5 ? 0.0 : uTime;
+    vec2 p = vUv - 0.5;
+    float r = length(p) * 2.0;
+    float ang = atan(p.y, p.x);
+
+    float R = 0.63 + uHover * 0.05;
+    float W = 0.036 + uHover * 0.012;
+    float ring = smoothstep(W, 0.0, abs(r - R));
+
+    // circulating brightness + fine sparkle travelling around the ring
+    float flow = 0.5 + 0.5 * sin(ang * 6.0 - t * 2.2) * sin(ang * 2.0 + t * 1.1);
+    float spark = pow(max(0.0, sin(ang * 34.0 - t * 7.0)), 10.0) * 0.6;
+    float a = ring * (0.35 + flow + spark);
+
+    vec3 warm = vec3(1.0, 0.66, 0.32);
+    vec3 hot = vec3(1.0, 0.96, 0.9);
+    vec3 col = mix(warm, hot, flow);
+
+    gl_FragColor = vec4(col, a * 0.85);
+  }
+`;
+
+const photonVert = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+function PhotonRing({
+  reduced,
+  hover,
+}: {
+  reduced: boolean;
+  hover: React.MutableRefObject<number>;
+}) {
+  const mesh = useRef<THREE.Mesh>(null);
+  const mat = useRef<THREE.ShaderMaterial>(null);
+  const { camera } = useThree();
+
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uHover: { value: 0 },
+      uReduced: { value: reduced ? 1 : 0 },
+    }),
+    [reduced],
+  );
+
+  useFrame((_, delta) => {
+    if (mesh.current) mesh.current.quaternion.copy(camera.quaternion);
+    if (!mat.current) return;
+    mat.current.uniforms.uTime.value += Math.min(delta, 0.05);
+    mat.current.uniforms.uHover.value = hover.current;
+  });
+
+  return (
+    <mesh ref={mesh}>
+      <planeGeometry args={[4, 4]} />
+      <shaderMaterial
+        ref={mat}
+        vertexShader={photonVert}
+        fragmentShader={photonFrag}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
       />
-      <DiskPoints
-        attrs={ring}
-        size={0.7}
-        reduced={reduced}
-        pointerWorld={pointerWorld}
-        hover={hover}
-      />
-    </>
+    </mesh>
   );
 }
 
@@ -393,8 +479,8 @@ class LensEffectImpl extends Effect {
         ["uCenter", new THREE.Uniform(new THREE.Vector2(0.5, 0.5))],
         ["uPointer", new THREE.Uniform(new THREE.Vector2(0.5, 0.5))],
         ["uAspect", new THREE.Uniform(1)],
-        ["uStrength", new THREE.Uniform(0.08)],
-        ["uRadius", new THREE.Uniform(0.15)],
+        ["uStrength", new THREE.Uniform(0.055)],
+        ["uRadius", new THREE.Uniform(0.12)],
         ["uSwirl", new THREE.Uniform(0.1)],
         ["uPointerAmt", new THREE.Uniform(0)],
       ]),
@@ -414,8 +500,8 @@ function Lens({ shared }: { shared: React.MutableRefObject<Shared> }) {
     (u.get("uCenter")!.value as THREE.Vector2).copy(s.center);
     (u.get("uPointer")!.value as THREE.Vector2).copy(s.pointer);
     u.get("uAspect")!.value = s.aspect;
-    u.get("uStrength")!.value = 0.075 + s.hover * 0.3;
-    u.get("uSwirl")!.value = 0.06 + s.hover * 0.24;
+    u.get("uStrength")!.value = 0.055 + s.hover * 0.3;
+    u.get("uSwirl")!.value = 0.05 + s.hover * 0.24;
     u.get("uPointerAmt")!.value = s.hover;
   });
   return <LensEffect ref={ref} />;
@@ -458,9 +544,8 @@ function Scene({
     const aspect = size.width / size.height;
     const dx = (pux - cx) * aspect;
     const dy = puy - cy;
-    const near = 1 - Math.min(1, Math.hypot(dx, dy) / 0.85);
-    const target =
-      reduced || s.active < 0.5 ? 0 : Math.max(0.12, near * near);
+    const near = 1 - Math.min(1, Math.hypot(dx, dy) / 0.9);
+    const target = reduced || s.active < 0.5 ? 0 : near * near;
     hover.current += (target - hover.current) * 0.06;
 
     s.center.set(cx, cy);
@@ -480,11 +565,13 @@ function Scene({
           hover={hover}
         />
 
-        {/* event horizon — opaque, occludes the disk behind it */}
+        {/* event horizon — opaque, occludes whatever is behind it */}
         <mesh>
-          <sphereGeometry args={[0.9, 64, 64]} />
+          <sphereGeometry args={[1.15, 64, 64]} />
           <meshBasicMaterial color="#000000" />
         </mesh>
+
+        <PhotonRing reduced={reduced} hover={hover} />
       </group>
     </>
   );
