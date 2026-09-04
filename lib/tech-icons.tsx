@@ -22,10 +22,11 @@ import {
   SiOpencv,
   SiIntellijidea,
   SiGoogleanalytics,
+  SiGooglecolab,
   SiDiscord,
 } from "react-icons/si";
 import { VscAzure, VscAzureDevops } from "react-icons/vsc";
-import { TbBrandCSharp } from "react-icons/tb";
+import { TbBrandCSharp, TbBrandVisualStudio } from "react-icons/tb";
 import {
   LuDatabase,
   LuServer,
@@ -35,6 +36,11 @@ import {
   LuBot,
   LuTestTubes,
   LuCode,
+  LuMessageSquare,
+  LuUsers,
+  LuShuffle,
+  LuPuzzle,
+  LuGauge,
 } from "react-icons/lu";
 
 /**
@@ -83,6 +89,15 @@ const ICONS: Record<string, IconType> = {
   "Claude Code": SiClaude,
   "GitHub Copilot": SiGithubcopilot,
   "AI agents": LuBot,
+  "Visual Studio": TbBrandVisualStudio,
+  "Google Colab": SiGooglecolab,
+
+  // Soft skills
+  Communication: LuMessageSquare,
+  Teamwork: LuUsers,
+  Adaptability: LuShuffle,
+  "Problem Solving": LuPuzzle,
+  "Decision-Making Under Pressure": LuGauge,
 
   // Project stacks
   "Node.js": SiNodedotjs,

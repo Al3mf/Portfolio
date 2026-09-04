@@ -52,16 +52,28 @@ export default function Home() {
             {stack.map((group) => (
               <div
                 key={group.label}
-                className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-center sm:gap-6"
+                className="grid gap-2 sm:grid-cols-[12rem_1fr] sm:items-center sm:gap-5"
               >
-                <dt className="font-mono text-[12px] uppercase tracking-[0.12em] text-ink-faint">
+                <dt className="font-mono text-[12px] uppercase tracking-[0.08em] text-ink-faint">
                   {group.label}
                 </dt>
-                <dd className="flex flex-wrap gap-2">
-                  {group.items.map((item) => (
-                    <Pill key={item} icon={techIcon(item)}>
-                      {item}
-                    </Pill>
+                <dd className="space-y-2">
+                  {group.bands.map((band, i) => (
+                    <div
+                      key={band.level ?? i}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      {band.level ? (
+                        <span className="mr-0.5 text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+                          {band.level}
+                        </span>
+                      ) : null}
+                      {band.items.map((item) => (
+                        <Pill key={item} icon={techIcon(item)}>
+                          {item}
+                        </Pill>
+                      ))}
+                    </div>
                   ))}
                 </dd>
               </div>

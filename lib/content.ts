@@ -15,14 +15,65 @@ export const profile = {
   bio: "Systems Engineering and Applied Computer Science student with 3+ years of professional experience as a Quality Assurance Engineer for international web and mobile teams. I care about problem-solving, continuous learning, and shipping software people can trust — hands-on with Python, TypeScript, and C across logistics, video games, research, and infrastructure.",
 };
 
-export type StackGroup = { label: string; items: string[] };
+// Grouped the way the CV lists skills: a category, then optional proficiency
+// bands (Intermediate / Basic). Omit `level` for a flat list.
+export type StackBand = { level?: string; items: string[] };
+export type StackGroup = { label: string; bands: StackBand[] };
 
 export const stack: StackGroup[] = [
-  { label: "Languages", items: ["Python", "TypeScript", "C", "SQL", "C#"] },
-  { label: "QA & Testing", items: ["Playwright", "Postman", "Swagger UI", "REST APIs", "Regression", "Exploratory"] },
-  { label: "Databases", items: ["PostgreSQL", "Microsoft SQL Server", "SQLite", "MongoDB"] },
-  { label: "Tooling & Agile", items: ["Git", "Jira", "Azure DevOps", "Confluence", "Jenkins", "Django", "Android Studio", "TestFlight"] },
-  { label: "AI dev tools", items: ["Cursor", "Claude", "Claude Code", "GitHub Copilot", "AI agents"] },
+  {
+    label: "Programming Languages",
+    bands: [
+      { level: "Intermediate", items: ["Python", "TypeScript", "C", "SQL"] },
+      { level: "Basic", items: ["C#"] },
+    ],
+  },
+  {
+    label: "Frameworks & Tools",
+    bands: [{ level: "Intermediate", items: ["Playwright", "Postman"] }],
+  },
+  {
+    label: "Tools",
+    bands: [
+      {
+        items: [
+          "Git",
+          "Postman",
+          "Visual Studio",
+          "AI agents",
+          "Cursor",
+          "Claude",
+          "GitHub Copilot",
+          "Google Colab",
+        ],
+      },
+    ],
+  },
+  {
+    label: "Databases",
+    bands: [
+      { level: "Intermediate", items: ["Microsoft SQL Server", "PostgreSQL"] },
+      { level: "Basic", items: ["MongoDB"] },
+    ],
+  },
+  {
+    label: "Agile",
+    bands: [{ items: ["Jira", "Azure", "Confluence"] }],
+  },
+  {
+    label: "Soft Skills",
+    bands: [
+      {
+        items: [
+          "Communication",
+          "Teamwork",
+          "Adaptability",
+          "Problem Solving",
+          "Decision-Making Under Pressure",
+        ],
+      },
+    ],
+  },
 ];
 
 export type Job = {
