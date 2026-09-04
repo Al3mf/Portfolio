@@ -26,7 +26,7 @@ export default function Section({
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        <h2 className="mb-8 font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faint">
+        <h2 className="mb-8 font-mono text-sm font-semibold uppercase tracking-[0.16em] text-ink">
           {title}
         </h2>
         {children}

@@ -52,9 +52,9 @@ export default function Home() {
             {stack.map((group) => (
               <div
                 key={group.label}
-                className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:gap-6"
+                className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-center sm:gap-6"
               >
-                <dt className="pt-1 font-mono text-[12px] uppercase tracking-[0.12em] text-ink-faint">
+                <dt className="font-mono text-[12px] uppercase tracking-[0.12em] text-ink-faint">
                   {group.label}
                 </dt>
                 <dd className="flex flex-wrap gap-2">
@@ -190,7 +190,7 @@ export default function Home() {
             ))}
           </div>
 
-          <h3 className="mb-6 mt-14 font-mono text-[12px] uppercase tracking-[0.18em] text-ink-faint">
+          <h3 className="mb-6 mt-14 font-mono text-sm font-semibold uppercase tracking-[0.16em] text-ink">
             Leadership &amp; Activities
           </h3>
           <div className="space-y-6">
