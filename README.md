@@ -27,9 +27,13 @@ nothing else needs to change.
 
 - **Add a photo:** drop `avatar.jpg` in `public/` and set `profile.avatar` to
   `"/avatar.jpg"` in `lib/content.ts`. (The hero currently renders without one.)
-- **Tune the black hole:** `components/BlackHole.tsx` — particle count, disk
-  radius/tilt, `GROUP_Y` (screen position), bloom, and the hover-driven
-  `uStrength` / `uSwirl` lensing amounts are all near the top or in `<Lens>`.
+- **Tune the black hole:** `components/BlackHole.tsx`.
+  - Apparent size / framing: `sc` scale, `camPos`, and the plane size in
+    `<BlackHoleCore>`; `GROUP_Y` moves it up/down the screen.
+  - Warp strength (rest + on hover): `warp` in the `bhFrag` shader.
+  - Disk colour / brightness: the `diskColor()` function.
+  - Dust and stars: `DUST_COUNT` / `STAR_COUNT` and the `<Dust>` / `<Starfield>`
+    materials.
 
 ## Build
 
