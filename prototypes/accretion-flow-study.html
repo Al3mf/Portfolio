@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Accretion Flow Study</title>
+<meta name="description" content="Prototype of the hero's lensed accretion disk - particles circulating over and under the shadow." />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+
+<style>
+  :root {
+    --void:        #05060a;
+    --starlight:   #eef0f6;
+    --dim:         #7f889c;
+    --amber:       #ffb066;
+    --hot:         #fff2df;
+    --relativistic:#77b0ff;
+    --deep:        #c14b3a;
+    --line:        #1b1f2b;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--starlight);
+    font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage { position: fixed; inset: 0; }
+  #gl { display: block; width: 100%; height: 100%; }
+
+  #stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 92% at 50% 44%, transparent 42%, rgba(5,6,10,0.5) 100%),
+      linear-gradient(to bottom, rgba(5,6,10,0.5) 0%, transparent 26%, transparent 58%, rgba(5,6,10,0.85) 100%);
+  }
+
+  #guides {
+    position: fixed;
+    left: 50%;
+    top: 44%;
+    width: min(78vw, 620px);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: opacity .35s ease;
+  }
+  #guides.hidden { opacity: 0; }
+  #guides path { fill: none; stroke: var(--relativistic); stroke-width: 3; stroke-linecap: round; }
+  #guides .lbl {
+    fill: var(--relativistic);
+    font: 500 12px/1 "IBM Plex Mono", monospace;
+    letter-spacing: .03em;
+    opacity: .9;
+  }
+
+  .hud { position: fixed; z-index: 5; }
+
+  .topleft { top: clamp(16px, 3.5vw, 34px); left: clamp(16px, 3.5vw, 34px); max-width: 41ch; }
+  .eyebrow {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--relativistic);
+  }
+  h1 {
+    margin: 0 0 12px;
+    font-size: clamp(18px, 2.3vw, 24px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .caption { margin: 0; font-size: 13px; line-height: 1.68; color: var(--dim); }
+  .caption b { color: var(--starlight); font-weight: 500; }
+
+  .bottomleft {
+    bottom: clamp(16px, 3.5vw, 30px);
+    left: clamp(16px, 3.5vw, 34px);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(11,13,20,0.66);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    font-size: 12px;
+    color: var(--dim);
+  }
+  button.chip {
+    cursor: pointer;
+    color: var(--starlight);
+    transition: border-color .15s ease, color .15s ease;
+  }
+  button.chip:hover { border-color: #313747; }
+  button.chip[aria-pressed="true"] { border-color: var(--relativistic); color: var(--relativistic); }
+  button.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .35; }
+  button.chip[aria-pressed="true"] .dot { opacity: 1; }
+
+  .chip input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 116px; height: 3px; border-radius: 2px;
+    background: linear-gradient(to right, var(--amber), #3a2f26);
+    outline: none;
+  }
+  .chip input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--hot); cursor: pointer; border: none;
+  }
+  .chip input[type="range"]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%; background: var(--hot); cursor: pointer; border: none;
+  }
+  .chip .val { color: var(--starlight); font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; }
+
+  .hint {
+    bottom: clamp(16px, 3.5vw, 30px);
+    right: clamp(16px, 3.5vw, 34px);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    opacity: .8;
+  }
+
+  :focus-visible { outline: 2px solid var(--relativistic); outline-offset: 3px; border-radius: 6px; }
+
+  @media (max-width: 640px) {
+    .hint { display: none; }
+    .topleft { max-width: none; right: clamp(16px, 3.5vw, 34px); }
+    #guides .lbl { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="gl"></canvas>
+</div>
+
+<svg id="guides" viewBox="0 0 640 640" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0.6 1 L9 5 L0.6 9" stroke="#77b0ff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+  </defs>
+  <!-- front edge across the middle, travelling right -->
+  <path d="M150 320 L470 320" marker-end="url(#ah)" />
+  <!-- circular arc over the top, travelling left -->
+  <path d="M452 214 A 190 190 0 0 0 188 214" marker-end="url(#ah)" />
+  <!-- circular arc under the bottom, travelling right -->
+  <path d="M188 426 A 190 190 0 0 0 452 426" marker-end="url(#ah)" />
+  <!-- right shoulder rising -->
+  <path d="M486 372 A 96 96 0 0 0 486 268" marker-end="url(#ah)" />
+  <!-- left shoulder descending -->
+  <path d="M154 268 A 96 96 0 0 0 154 372" marker-end="url(#ah)" />
+  <text class="lbl" x="222" y="310">front edge &#8594;</text>
+  <text class="lbl" x="210" y="150">&#8592; far side, lensed over</text>
+  <text class="lbl" x="214" y="500">far side, lensed under &#8594;</text>
+</svg>
+
+<header class="hud topleft">
+  <p class="eyebrow">Preview / Accretion flow</p>
+  <h1>Black-hole hero &#8212; flow study v4</h1>
+  <p class="caption">
+    One continuous ribbon: the <b>front edge</b> streams left, meets the lensed arcs
+    at the left/right shoulders with no gap, and the far half wraps <b>over the top</b>
+    and <b>under the bottom</b> in a circle scaled to the hole. Move the cursor near it
+    &#8212; only the <b>particles</b> stir and swirl, not the whole frame, like the live site.
+  </p>
+</header>
+
+<div class="hud bottomleft">
+  <button id="toggleGuides" class="chip" type="button" aria-pressed="true">
+    <span class="dot" aria-hidden="true"></span> Flow guides
+  </button>
+  <label class="chip">
+    Lensing
+    <input id="lens" type="range" min="0" max="100" value="100" aria-label="Lensing strength" />
+    <span class="val" id="lensVal">100</span>
+  </label>
+</div>
+
+<div class="hud hint">Hover to stir</div>
+
+<script>
+(function () {
+  "use strict";
+  var THREE = window.THREE;
+  var canvas = document.getElementById("gl");
+  var RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+  renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  camera.position.set(0, 1.15, 7.3);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+
+  var HOLE_VIEW = new THREE.Vector3(0, 0, 0).applyMatrix4(camera.matrixWorldInverse);
+  var INNER = 1.1, OUTER = 3.9;
+
+  /* ---------- accretion disk ---------- */
+  var N = 26000;
+  var position = new Float32Array(N * 3);
+  var aRadius = new Float32Array(N), aAngle = new Float32Array(N),
+      aSpeed = new Float32Array(N), aScale = new Float32Array(N), aSeed = new Float32Array(N);
+
+  for (var i = 0; i < N; i++) {
+    var r = INNER + Math.pow(Math.random(), 1.7) * (OUTER - INNER);
+    var a = Math.random() * Math.PI * 2;
+    aRadius[i] = r; aAngle[i] = a;
+    aSpeed[i] = (0.6 / Math.pow(r, 1.35)) * (0.82 + Math.random() * 0.36);
+    aScale[i] = 0.5 + Math.random() * 1.9;
+    aSeed[i] = Math.random();
+    position[i * 3] = Math.cos(a) * r; position[i * 3 + 1] = 0; position[i * 3 + 2] = Math.sin(a) * r;
+  }
+
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(position, 3));
+  geo.setAttribute("aRadius", new THREE.BufferAttribute(aRadius, 1));
+  geo.setAttribute("aAngle", new THREE.BufferAttribute(aAngle, 1));
+  geo.setAttribute("aSpeed", new THREE.BufferAttribute(aSpeed, 1));
+  geo.setAttribute("aScale", new THREE.BufferAttribute(aScale, 1));
+  geo.setAttribute("aSeed", new THREE.BufferAttribute(aSeed, 1));
+
+  var diskVert = [
+    "precision highp float;",
+    "attribute float aRadius; attribute float aAngle; attribute float aSpeed; attribute float aScale; attribute float aSeed;",
+    "uniform float uTime, uSize, uDpr, uHover, uLensK, uRingR, uMode, uInner, uOuter;",
+    "uniform vec3 uHoleView, uPointerW;",
+    "varying vec3 vCol; varying float vAlpha;",
+    "const float PI = 3.14159265;",
+    "void main() {",
+    "  float ang = aAngle + uTime * aSpeed;",
+    "  float phase = mod(ang, 6.2831853);",
+    "  vec3 p = vec3(cos(ang) * aRadius, 0.0, sin(ang) * aRadius);",
+    "  p.y += (aSeed - 0.5) * 0.04 * aRadius;",
+    // cursor stir - same idea as the live site
+    "  vec3 wp = (modelMatrix * vec4(p, 1.0)).xyz;",
+    "  float infl = smoothstep(2.6, 0.0, distance(wp.xz, uPointerW.xz)) * uHover;",
+    "  vec3 radial = normalize(vec3(p.x, 0.0, p.z));",
+    "  p += radial * sin(uTime * 6.0 + aAngle * 9.0) * 0.22 * infl;",
+    "  p.y += sin(uTime * 5.0 + aRadius * 12.0) * 0.18 * infl;",
+    "  p.xz += vec2(-p.z, p.x) * 0.14 * infl;",
+    "  vec4 mv = modelViewMatrix * vec4(p, 1.0);",
+    "  vec2 rel = mv.xy - uHoleView.xy;",
+    "  float bandT = clamp((aRadius - uInner) / (uOuter - uInner), 0.0, 1.0);",
+
+    // On the FAR half of the orbit (hidden behind the hole)? From the orbital angle,
+    // so it holds at every radius - not just the outer disk.
+    "  float behind = smoothstep(0.16, -0.44, sin(ang));",           // 0 near half .. 1 far half
+    "  float toFar = smoothstep(0.34, 0.62, behind);",
+
+    // The near half stays as the real disk (a thin ellipse - the front edge + wings).
+    // The far half is the lensed double image: snapped onto an arc whose ENDS land
+    // exactly on the disk's inner edge at the left/right shoulders, so it is one
+    // continuous ribbon with no gap. Primary = over the top, secondary = under.
+    "  float lensedAng = 6.2831853 - phase;",                        // left -> top -> right, uniform
+    "  float ang2 = lensedAng + (aSeed - 0.5) * 0.045;",
+    "  vec2 dirv = vec2(cos(ang2), sin(ang2));",
+    "  if (uMode > 0.5) {",
+    "    if (behind < 0.42) { gl_Position = vec4(2.0); return; }",   // bottom image = far side only
+    "    dirv.y = -abs(dirv.y);",
+    "  } else {",
+    "    dirv.y = abs(dirv.y);",                                     // top image
+    "  }",
+    "  float arcR = uRingR * (1.0 + bandT * 0.55) * (1.0 + (aSeed - 0.5) * 0.07) + uHover * 0.2;",
+    "  vec2 arcTarget = uHoleView.xy + dirv * arcR;",
+    "  float k = toFar * uLensK;",
+    "  mv.xy = mix(mv.xy, arcTarget, k);",
+    "  mv.z = mix(mv.z, uHoleView.z + 0.3, k);",
+
+    // the front edge keeps distorting - a live sag toward the hole, stronger on hover
+    "  float centerness = 1.0 - clamp(abs(rel.x) / (uRingR * 3.0), 0.0, 1.0);",
+    "  float sag = (1.0 - toFar) * centerness * (0.08 + uHover * 0.5 + 0.05 * sin(uTime * 0.9 + rel.x * 1.6));",
+    "  mv.y -= sag;",
+    "  gl_Position = projectionMatrix * mv;",
+    "  gl_PointSize = aScale * uSize * uDpr * (62.0 / -mv.z);",
+    "  float temp = smoothstep(uOuter, uInner, aRadius);",
+    "  vec3 cool = vec3(0.80, 0.30, 0.19);",
+    "  vec3 mid  = vec3(1.0, 0.68, 0.38);",
+    "  vec3 hot  = vec3(1.0, 0.95, 0.88);",
+    "  vCol = mix(cool, mid, smoothstep(0.0, 0.5, temp));",
+    "  vCol = mix(vCol, hot, smoothstep(0.64, 1.0, temp));",
+    "  float dop = 0.55 + 0.5 * smoothstep(-1.0, 1.0, sin(ang));",
+    // travelling bright clumps so the WHOLE ribbon - front edge included - visibly flows
+    "  float clump = 1.0 + 0.5 * sin(phase * 3.0 - uTime * 1.7 + aRadius * 1.4);",
+    "  vAlpha = ((0.34 + 0.66 * temp) * dop * clump * (uMode > 0.5 ? 0.62 : 1.0)) + infl * 0.4 + toFar * 0.5;",
+    "}"
+  ].join("\n");
+
+  var diskFrag = [
+    "precision highp float;",
+    "varying vec3 vCol; varying float vAlpha;",
+    "void main() {",
+    "  vec2 c = gl_PointCoord - 0.5;",
+    "  float d = length(c);",
+    "  if (d > 0.5) discard;",
+    "  gl_FragColor = vec4(vCol, smoothstep(0.5, 0.04, d) * vAlpha * 0.6);",
+    "}"
+  ].join("\n");
+
+  function diskMaterial(mode) {
+    return new THREE.ShaderMaterial({
+      vertexShader: diskVert, fragmentShader: diskFrag,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 }, uSize: { value: 0.32 },
+        uDpr: { value: Math.min(window.devicePixelRatio || 1, 2) },
+        uHover: { value: 0 }, uLensK: { value: 0.92 }, uRingR: { value: 1.0 },
+        uMode: { value: mode }, uInner: { value: INNER }, uOuter: { value: OUTER },
+        uHoleView: { value: HOLE_VIEW.clone() }, uPointerW: { value: new THREE.Vector3(99, 99, 99) }
+      }
+    });
+  }
+
+  var diskGroup = new THREE.Group();
+  diskGroup.rotation.x = -0.10;
+  diskGroup.rotation.z = 0.04;
+  var primaryMat = diskMaterial(0.0);
+  var secondaryMat = diskMaterial(1.0);
+  diskGroup.add(new THREE.Points(geo, primaryMat));
+  diskGroup.add(new THREE.Points(geo, secondaryMat));
+  scene.add(diskGroup);
+
+  /* ---------- event horizon ---------- */
+  scene.add(new THREE.Mesh(
+    new THREE.SphereGeometry(0.8, 48, 48),
+    new THREE.MeshBasicMaterial({ color: 0x000000 })
+  ));
+
+  /* ---------- sparse dust ---------- */
+  var DN = 560;
+  var dpos = new Float32Array(DN * 3), dseed = new Float32Array(DN), dscale = new Float32Array(DN);
+  for (var j = 0; j < DN; j++) {
+    var dr = 2.6 + Math.pow(Math.random(), 0.7) * 12;
+    var da = Math.random() * Math.PI * 2;
+    dpos[j * 3] = Math.cos(da) * dr + (Math.random() - 0.5) * 3;
+    dpos[j * 3 + 1] = (Math.random() - 0.5) * dr * 0.4;
+    dpos[j * 3 + 2] = Math.sin(da) * dr + (Math.random() - 0.5) * 3;
+    dseed[j] = Math.random(); dscale[j] = 0.5 + Math.random() * 2.1;
+  }
+  var dgeo = new THREE.BufferGeometry();
+  dgeo.setAttribute("position", new THREE.BufferAttribute(dpos, 3));
+  dgeo.setAttribute("aSeed", new THREE.BufferAttribute(dseed, 1));
+  dgeo.setAttribute("aScale", new THREE.BufferAttribute(dscale, 1));
+  var dustMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 }, uDpr: { value: Math.min(window.devicePixelRatio || 1, 2) } },
+    vertexShader: [
+      "precision highp float;",
+      "attribute float aSeed; attribute float aScale;",
+      "uniform float uTime, uDpr; varying float vA;",
+      "void main(){",
+      "  vec3 p = position;",
+      "  p.x += sin(uTime * 0.14 + aSeed * 6.28) * 0.3;",
+      "  p.y += cos(uTime * 0.11 + aSeed * 4.0) * 0.15;",
+      "  vec4 mv = modelViewMatrix * vec4(p, 1.0);",
+      "  gl_Position = projectionMatrix * mv;",
+      "  gl_PointSize = aScale * uDpr * (32.0 / -mv.z);",
+      "  vA = 0.4 + 0.6 * sin(uTime * 0.5 + aSeed * 10.0);",
+      "}"
+    ].join("\n"),
+    fragmentShader: [
+      "precision highp float; varying float vA;",
+      "void main(){",
+      "  vec2 c = gl_PointCoord - 0.5; if (length(c) > 0.5) discard;",
+      "  gl_FragColor = vec4(0.82, 0.4, 0.3, smoothstep(0.5, 0.0, length(c)) * vA * 0.42);",
+      "}"
+    ].join("\n")
+  });
+  scene.add(new THREE.Points(dgeo, dustMat));
+
+  /* ---------- interaction: the cursor stirs the PARTICLES (not the whole frame) ---------- */
+  var hover = 0, hoverTarget = 0;
+  var ndc = new THREE.Vector2(99, 99);
+  var pointerW = new THREE.Vector3(99, 99, 99);
+  var ray = new THREE.Vector3();
+
+  window.addEventListener("pointermove", function (e) {
+    ndc.set((e.clientX / window.innerWidth) * 2 - 1, -((e.clientY / window.innerHeight) * 2 - 1));
+    var dx = e.clientX / window.innerWidth - 0.5;
+    var dy = e.clientY / window.innerHeight - 0.44;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    hoverTarget = Math.max(0, 1 - d / 0.62);
+    hoverTarget *= hoverTarget;
+  }, { passive: true });
+  window.addEventListener("blur", function () { hoverTarget = 0; });
+
+  var lens = document.getElementById("lens");
+  var lensVal = document.getElementById("lensVal");
+  var lensAmt = 1.0;
+  lens.addEventListener("input", function () {
+    lensAmt = parseInt(lens.value, 10) / 100;
+    lensVal.textContent = lens.value;
+  });
+
+  var guides = document.getElementById("guides");
+  var toggle = document.getElementById("toggleGuides");
+  toggle.addEventListener("click", function () {
+    var on = toggle.getAttribute("aria-pressed") === "true";
+    toggle.setAttribute("aria-pressed", String(!on));
+    guides.classList.toggle("hidden", on);
+  });
+
+  function resize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  var t = 0, last = performance.now();
+  function frame(now) {
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    t += dt * (RM ? 0.16 : 1);
+    hover += (hoverTarget - hover) * 0.06;
+
+    // project cursor onto the disk plane
+    ray.set(ndc.x, ndc.y, 0.5).unproject(camera).sub(camera.position).normalize();
+    var tHit = -camera.position.y / ray.y;
+    if (tHit > 0 && isFinite(tHit)) pointerW.copy(camera.position).addScaledVector(ray, tHit);
+
+    var lensK = 0.78 + lensAmt * 0.22;
+    [primaryMat, secondaryMat].forEach(function (m) {
+      m.uniforms.uTime.value = t;
+      m.uniforms.uHover.value = hover;
+      m.uniforms.uLensK.value = lensK;
+      m.uniforms.uRingR.value = 1.0 + hover * 0.12;
+      m.uniforms.uPointerW.value.copy(pointerW);
+    });
+    dustMat.uniforms.uTime.value = t;
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
