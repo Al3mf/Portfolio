@@ -1,10 +1,14 @@
 # Alejandro Melo Flores — Portfolio
 
 Personal portfolio site: bio, tech stack, experience, projects and education,
-with an interactive point-cloud sphere in the hero.
+with an interactive black-hole hero — a particle accretion disk orbiting an
+event horizon, with real-time gravitational lensing that intensifies as the
+cursor approaches.
 
-Built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS** and
-**React Three Fiber / three.js**.
+Built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**,
+**React Three Fiber / three.js**, **@react-three/postprocessing** (bloom + a
+custom lensing effect), **Lenis** (smooth scroll) and **Motion** (scroll
+reveals).
 
 ## Develop
 
@@ -23,8 +27,9 @@ nothing else needs to change.
 
 - **Add a photo:** drop `avatar.jpg` in `public/` and set `profile.avatar` to
   `"/avatar.jpg"` in `lib/content.ts`. (The hero currently renders without one.)
-- **Tune the sphere:** `components/ParticleSphere.tsx` — `COUNT`, `RADIUS`,
-  `uSize`, spin speed and pointer response are all near the top.
+- **Tune the black hole:** `components/BlackHole.tsx` — particle count, disk
+  radius/tilt, `GROUP_Y` (screen position), bloom, and the hover-driven
+  `uStrength` / `uSwirl` lensing amounts are all near the top or in `<Lens>`.
 
 ## Build
 
