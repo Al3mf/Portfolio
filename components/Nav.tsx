@@ -31,13 +31,13 @@ export default function Nav() {
   }, []);
 
   return (
-    <nav className="fixed left-1/2 top-4 z-50 -translate-x-1/2">
-      <ul className="flex items-center gap-1 rounded-full border border-base-border bg-base-raised/80 px-2 py-1.5 text-[13px] backdrop-blur-md">
+    <nav className="fixed left-1/2 top-3 z-50 max-w-[calc(100vw-1rem)] -translate-x-1/2 sm:top-4">
+      <ul className="no-scrollbar flex items-center gap-0.5 overflow-x-auto rounded-full border border-base-border bg-base-raised/80 px-1.5 py-1.5 text-[12px] backdrop-blur-md sm:gap-1 sm:px-2 sm:text-[13px]">
         {links.map(({ id, label }) => (
           <li key={id}>
             <a
               href={`#${id}`}
-              className={`rounded-full px-3 py-1 transition-colors ${
+              className={`block whitespace-nowrap rounded-full px-2.5 py-1 transition-colors sm:px-3 ${
                 active === id
                   ? "bg-base-border text-ink"
                   : "text-ink-dim hover:text-ink"
