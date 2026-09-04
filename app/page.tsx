@@ -2,6 +2,7 @@ import Hero from "@/components/Hero";
 import Nav from "@/components/Nav";
 import Section from "@/components/Section";
 import Pill from "@/components/Pill";
+import { techIcon } from "@/lib/tech-icons";
 import {
   activities,
   education,
@@ -58,7 +59,9 @@ export default function Home() {
                 </dt>
                 <dd className="flex flex-wrap gap-2">
                   {group.items.map((item) => (
-                    <Pill key={item}>{item}</Pill>
+                    <Pill key={item} icon={techIcon(item)}>
+                      {item}
+                    </Pill>
                   ))}
                 </dd>
               </div>
@@ -100,7 +103,9 @@ export default function Home() {
                 </ul>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {job.stack.map((s) => (
-                    <Pill key={s}>{s}</Pill>
+                    <Pill key={s} icon={techIcon(s)}>
+                      {s}
+                    </Pill>
                   ))}
                 </div>
               </article>
@@ -127,7 +132,9 @@ export default function Home() {
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {p.stack.map((s) => (
-                      <Pill key={s}>{s}</Pill>
+                      <Pill key={s} icon={techIcon(s)}>
+                        {s}
+                      </Pill>
                     ))}
                   </div>
                 </>
@@ -159,12 +166,22 @@ export default function Home() {
             {education.map((e) => (
               <div
                 key={e.school}
-                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
+                className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2"
               >
-                <div>
-                  <h3 className="text-[15px] font-medium text-ink">{e.school}</h3>
-                  <p className="text-[14px] text-ink-dim">{e.program}</p>
-                  <p className="text-[13px] text-ink-faint">{e.location}</p>
+                <div className="flex items-start gap-3">
+                  <span
+                    className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-base-border bg-base-raised font-mono text-[9px] font-medium tracking-tight text-ink-dim"
+                    aria-hidden
+                  >
+                    {e.short}
+                  </span>
+                  <div>
+                    <h3 className="text-[15px] font-medium text-ink">
+                      {e.school}
+                    </h3>
+                    <p className="text-[14px] text-ink-dim">{e.program}</p>
+                    <p className="text-[13px] text-ink-faint">{e.location}</p>
+                  </div>
                 </div>
                 <span className="font-mono text-[12px] text-ink-faint">
                   {e.period}

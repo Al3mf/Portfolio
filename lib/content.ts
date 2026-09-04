@@ -105,6 +105,7 @@ export const projects: Project[] = [
 
 export type School = {
   school: string;
+  short: string; // monogram shown as the school's mark
   program: string;
   location: string;
   period: string;
@@ -113,12 +114,14 @@ export type School = {
 export const education: School[] = [
   {
     school: "City University of Seattle",
+    short: "CityU",
     program: "B.S. in Applied Computer Science",
     location: "Seattle, WA",
     period: "Expected Jul 2028",
   },
   {
     school: "Universidad Autónoma de San Luis Potosí",
+    short: "UASLP",
     program: "Bachelor's in Systems Engineering",
     location: "San Luis Potosí, Mexico",
     period: "Expected Jul 2028",
