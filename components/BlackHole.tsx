@@ -8,10 +8,9 @@ import * as THREE from "three";
 
 /* ========================================================================== */
 /*  Interactive black hole: a particle accretion disk orbiting an event         */
-/*  horizon, a soft glow ring hugging the shadow, drifting stellar dust and a    */
-/*  starfield. Screen-space lensing bends it all toward the hole and deepens     */
-/*  as the cursor nears it — the cursor is tracked across the whole hero, so     */
-/*  hovering the headline works too.                                             */
+/*  horizon, with drifting stellar dust and a starfield. Screen-space lensing    */
+/*  bends it all toward the hole and deepens as the cursor nears it — the        */
+/*  cursor is tracked across the whole hero, so hovering the headline works too. */
 /* ========================================================================== */
 
 const DISK_COUNT = 17000;
@@ -207,7 +206,7 @@ function AccretionDisk({
   pointerWorld: React.MutableRefObject<THREE.Vector3>;
   hover: React.MutableRefObject<number>;
 }) {
-  const disk = useDiskAttributes(DISK_COUNT, 1.5, 4.1, 0.03);
+  const disk = useDiskAttributes(DISK_COUNT, 1.28, 4.1, 0.03);
   return (
     <DiskPoints
       attrs={disk}
@@ -218,91 +217,6 @@ function AccretionDisk({
       pointerWorld={pointerWorld}
       hover={hover}
     />
-  );
-}
-
-/* --------------------------- photon ring -------------------------------- */
-/*  A near-circular glow just outside the shadow (light bent around the hole).  */
-/*  Bright segments sweep around it so it reads as matter circulating, not a    */
-/*  static line — and it always sits outside the shadow, never inside it.       */
-
-const photonFrag = /* glsl */ `
-  varying vec2 vUv;
-  uniform float uTime;
-  uniform float uHover;
-  uniform float uReduced;
-
-  void main() {
-    float t = uReduced > 0.5 ? 0.0 : uTime;
-    vec2 p = vUv - 0.5;
-    float r = length(p) * 2.0;
-    float ang = atan(p.y, p.x);
-
-    float R = 0.63 + uHover * 0.05;
-    float W = 0.036 + uHover * 0.012;
-    float ring = smoothstep(W, 0.0, abs(r - R));
-
-    // circulating brightness + fine sparkle travelling around the ring
-    float flow = 0.5 + 0.5 * sin(ang * 6.0 - t * 2.2) * sin(ang * 2.0 + t * 1.1);
-    float spark = pow(max(0.0, sin(ang * 34.0 - t * 7.0)), 10.0) * 0.6;
-    float a = ring * (0.35 + flow + spark);
-
-    vec3 warm = vec3(1.0, 0.66, 0.32);
-    vec3 hot = vec3(1.0, 0.96, 0.9);
-    vec3 col = mix(warm, hot, flow);
-
-    gl_FragColor = vec4(col, a * 0.85);
-  }
-`;
-
-const photonVert = /* glsl */ `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-function PhotonRing({
-  reduced,
-  hover,
-}: {
-  reduced: boolean;
-  hover: React.MutableRefObject<number>;
-}) {
-  const mesh = useRef<THREE.Mesh>(null);
-  const mat = useRef<THREE.ShaderMaterial>(null);
-  const { camera } = useThree();
-
-  const uniforms = useMemo(
-    () => ({
-      uTime: { value: 0 },
-      uHover: { value: 0 },
-      uReduced: { value: reduced ? 1 : 0 },
-    }),
-    [reduced],
-  );
-
-  useFrame((_, delta) => {
-    if (mesh.current) mesh.current.quaternion.copy(camera.quaternion);
-    if (!mat.current) return;
-    mat.current.uniforms.uTime.value += Math.min(delta, 0.05);
-    mat.current.uniforms.uHover.value = hover.current;
-  });
-
-  return (
-    <mesh ref={mesh}>
-      <planeGeometry args={[4, 4]} />
-      <shaderMaterial
-        ref={mat}
-        vertexShader={photonVert}
-        fragmentShader={photonFrag}
-        uniforms={uniforms}
-        transparent
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </mesh>
   );
 }
 
@@ -570,8 +484,6 @@ function Scene({
           <sphereGeometry args={[1.15, 64, 64]} />
           <meshBasicMaterial color="#000000" />
         </mesh>
-
-        <PhotonRing reduced={reduced} hover={hover} />
       </group>
     </>
   );
