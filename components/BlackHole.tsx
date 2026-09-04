@@ -7,182 +7,216 @@ import { Effect } from "postprocessing";
 import * as THREE from "three";
 
 /* ========================================================================== */
-/*  Interactive black hole.                                                     */
-/*  - A raymarched shader plane bends light around the hole: an accretion disk   */
-/*    whose far side arcs up and over the shadow, a photon ring, and the         */
-/*    event-horizon silhouette.                                                  */
-/*  - Particle dust + a starfield sit behind it and get lensed by a post pass.   */
-/*  - The cursor drives it from anywhere over the hero, deepening the warp.      */
+/*  Interactive black hole: a particle accretion disk orbiting an event         */
+/*  horizon, a soft glow ring hugging the shadow, drifting stellar dust and a    */
+/*  starfield. Screen-space lensing bends it all toward the hole and deepens     */
+/*  as the cursor nears it — the cursor is tracked across the whole hero, so     */
+/*  hovering the headline works too.                                             */
 /* ========================================================================== */
 
-const DUST_COUNT = 5600;
-const STAR_COUNT = 1600;
-const GROUP_Y = 1.5;
-const DISK_TILT = -1.05;
+const DISK_COUNT = 15000;
+const RING_COUNT = 3000;
+const DUST_COUNT = 5200;
+const STAR_COUNT = 1800;
+
+// The hole sits in the upper half of the hero so the copy below stays readable.
+const GROUP_Y = 1.3;
+const DISK_TILT = -0.98;
 
 type Shared = {
-  center: THREE.Vector2;
-  pointer: THREE.Vector2;
-  ndc: THREE.Vector2;
-  hover: number;
-  active: number;
+  center: THREE.Vector2; // hole position in screen UV (0..1)
+  pointer: THREE.Vector2; // cursor in screen UV
+  ndc: THREE.Vector2; // cursor in NDC (-1..1, y up), tracked across the whole hero
+  hover: number; // eased 0..1 proximity to the hole
+  active: number; // 1 while the pointer is over the hero
   aspect: number;
 };
 
-/* ------------------------- raymarched black hole -------------------------- */
+/* --------------------------- accretion disk -------------------------------- */
 
-const bhVert = /* glsl */ `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const bhFrag = /* glsl */ `
-  precision highp float;
-  varying vec2 vUv;
-
+const diskVert = /* glsl */ `
   uniform float uTime;
+  uniform float uSize;
+  uniform float uPixelRatio;
   uniform float uHover;
-  uniform vec2  uPointerDir; // hole -> cursor, screen space (-1..1)
+  uniform vec3 uPointer;      // cursor projected onto the disk plane
   uniform float uReduced;
 
-  const int STEPS = 80;
+  attribute float aRadius;
+  attribute float aAngle;
+  attribute float aSpeed;
+  attribute float aScale;
+  attribute float aHeight;
 
-  float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-  float noise(vec2 p){
-    vec2 i = floor(p), f = fract(p);
-    float a = hash(i), b = hash(i + vec2(1.0, 0.0)), c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-  }
-  float fbm(vec2 p){
-    float s = 0.0, a = 0.5;
-    for (int i = 0; i < 4; i++){ s += a * noise(p); p *= 2.03; a *= 0.5; }
-    return s;
-  }
+  varying float vBright;
+  varying float vTemp;
 
-  vec3 diskColor(float r, float ang, float t){
-    float inner = 1.15, outer = 6.1;
-    if (r < inner || r > outer) return vec3(0.0);
-    float tn = (r - inner) / (outer - inner);
-
-    float turb = fbm(vec2(ang * 2.2 + r * 0.5 - t * 0.4, r * 1.7 + t * 0.05));
-    float bands = 0.35 + 0.9 * turb;
-
-    vec3 hot  = vec3(1.0, 0.96, 0.88);
-    vec3 mid  = vec3(1.0, 0.55, 0.22);
-    vec3 cool = vec3(0.5, 0.14, 0.05);
-    vec3 c = mix(hot, mid, smoothstep(0.0, 0.32, tn));
-    c = mix(c, cool, smoothstep(0.4, 1.0, tn));
-
-    float bright = pow(1.0 - tn, 1.35) * bands;
-    bright *= 0.6 + 0.7 * smoothstep(-1.0, 1.0, sin(ang));  // doppler
-    bright *= smoothstep(inner, inner + 0.3, r);            // soft inner edge
-    bright *= smoothstep(outer, outer - 2.4, r);            // soft outer edge
-    return c * bright * 1.45;
-  }
-
-  void main(){
+  void main() {
     float t = uReduced > 0.5 ? 0.0 : uTime;
 
-    // camera looking at the hole from slightly above
-    vec3 camPos = vec3(0.0, 2.35, 10.0);
-    vec3 fwd = normalize(-camPos);
-    vec3 right = normalize(cross(fwd, vec3(0.0, 1.0, 0.0)));
-    vec3 up = cross(right, fwd);
+    float ang = aAngle + t * aSpeed;
+    vec3 pos = vec3(cos(ang) * aRadius, aHeight, sin(ang) * aRadius);
 
-    vec2 sc = (vUv - 0.5) * 2.15;
-    // a touch of cursor-follow: skew the view under the pointer
-    sc += uPointerDir * 0.05 * uHover;
-    vec3 rd = normalize(fwd + right * sc.x + up * sc.y);
-    vec3 p = camPos;
+    // Cursor stirs the disk: nearby atoms get a swirl + radial kick.
+    vec3 worldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
+    float pd = distance(worldPos.xz, uPointer.xz);
+    float infl = smoothstep(2.4, 0.0, pd) * uHover;
+    float wob = sin(t * 6.0 + aAngle * 9.0);
+    vec3 radial = normalize(vec3(pos.x, 0.0, pos.z));
+    pos += radial * wob * 0.16 * infl;
+    pos.y += sin(t * 5.0 + aRadius * 12.0) * 0.13 * infl;
+    // tangential boost — the whole neighbourhood spins faster under the cursor
+    pos.xz += vec2(-pos.z, pos.x) * 0.1 * infl;
 
-    float warp = 1.12 + 0.03 * sin(t * 0.4) + uHover * 1.45;
+    vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = aScale * uSize * uPixelRatio * (26.0 / -mv.z);
 
-    vec3 col = vec3(0.0);
-    float alpha = 0.0;
-
-    for (int i = 0; i < STEPS; i++){
-      float r = length(p);
-      float dl = 0.12 + r * 0.045;
-
-      // gravitational bending of the light ray
-      vec3 g = -p / (r * r * r);
-      rd = normalize(rd + g * warp * dl);
-      vec3 pn = p + rd * dl;
-
-      if (r < 0.62){ alpha = 1.0; col *= 0.0; break; } // captured -> shadow
-
-      // crossed the disk plane
-      if (p.y * pn.y < 0.0 && alpha < 1.0){
-        float k = p.y / (p.y - pn.y);
-        vec3 h = mix(p, pn, k);
-        float dr = length(h.xz);
-        float ang = atan(h.z, h.x) + t * 0.16;
-        vec3 e = diskColor(dr, ang, t);
-        col += e * (1.0 - alpha);
-        alpha = clamp(alpha + dot(e, vec3(0.34)), 0.0, 1.0);
-      }
-
-      p = pn;
-      if (r > 26.0) break;
-    }
-
-    float edge = smoothstep(0.5, 0.30, length(vUv - 0.5));
-    float outA = max(alpha, clamp(dot(col, vec3(0.4)), 0.0, 1.0)) * edge;
-    gl_FragColor = vec4(col * edge, outA);
+    // Inner edge is hotter; the side rotating toward us is Doppler-boosted.
+    vTemp = smoothstep(3.7, 0.95, aRadius);
+    float doppler = 0.55 + 0.45 * smoothstep(0.4, -1.0, sin(ang));
+    vBright = mix(0.4, 1.15, vTemp) * doppler + infl * 0.6;
   }
 `;
 
-function BlackHoleCore({
+const diskFrag = /* glsl */ `
+  varying float vBright;
+  varying float vTemp;
+
+  void main() {
+    vec2 c = gl_PointCoord - 0.5;
+    float d = length(c);
+    if (d > 0.5) discard;
+    float a = smoothstep(0.5, 0.05, d) * vBright * 0.62;
+
+    // deep amber rim -> orange -> hot near-white core
+    vec3 hot = vec3(1.0, 0.95, 0.86);
+    vec3 mid = vec3(1.0, 0.62, 0.26);
+    vec3 cool = vec3(0.82, 0.22, 0.08);
+    vec3 col = mix(cool, mid, smoothstep(0.0, 0.45, vTemp));
+    col = mix(col, hot, smoothstep(0.7, 1.0, vTemp));
+
+    gl_FragColor = vec4(col, a);
+  }
+`;
+
+/** Builds the orbiting particle field: a bright thin ring hugging the shadow
+ *  plus the broader flared disk beyond it. */
+function useDiskAttributes(count: number, rInner: number, rOuter: number, thin: number) {
+  return useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const aRadius = new Float32Array(count);
+    const aAngle = new Float32Array(count);
+    const aSpeed = new Float32Array(count);
+    const aScale = new Float32Array(count);
+    const aHeight = new Float32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      const r = rInner + Math.pow(Math.random(), 1.7) * (rOuter - rInner);
+      const a = Math.random() * Math.PI * 2;
+      aRadius[i] = r;
+      aAngle[i] = a;
+      aSpeed[i] = (0.55 / Math.pow(r, 1.5)) * (0.85 + Math.random() * 0.3);
+      aScale[i] = 0.4 + Math.random() * 1.7;
+      const flare = thin + (r - rInner) * 0.05;
+      aHeight[i] = (Math.random() - 0.5) * 2 * flare * (0.4 + Math.random());
+      positions[i * 3] = Math.cos(a) * r;
+      positions[i * 3 + 1] = aHeight[i];
+      positions[i * 3 + 2] = Math.sin(a) * r;
+    }
+    return { positions, aRadius, aAngle, aSpeed, aScale, aHeight };
+  }, [count, rInner, rOuter, thin]);
+}
+
+function DiskPoints({
+  attrs,
+  size,
   reduced,
-  shared,
+  pointerWorld,
+  hover,
 }: {
+  attrs: ReturnType<typeof useDiskAttributes>;
+  size: number;
   reduced: boolean;
-  shared: React.MutableRefObject<Shared>;
+  pointerWorld: React.MutableRefObject<THREE.Vector3>;
+  hover: React.MutableRefObject<number>;
 }) {
-  const mesh = useRef<THREE.Mesh>(null);
   const mat = useRef<THREE.ShaderMaterial>(null);
-  const { camera } = useThree();
 
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
+      uSize: { value: size },
+      uPixelRatio: {
+        value:
+          typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 2) : 1,
+      },
       uHover: { value: 0 },
-      uPointerDir: { value: new THREE.Vector2() },
+      uPointer: { value: new THREE.Vector3() },
       uReduced: { value: reduced ? 1 : 0 },
     }),
-    [reduced],
+    [reduced, size],
   );
 
   useFrame((_, delta) => {
-    if (mesh.current) mesh.current.quaternion.copy(camera.quaternion);
     if (!mat.current) return;
     const u = mat.current.uniforms;
     u.uTime.value += Math.min(delta, 0.05);
-    u.uHover.value = shared.current.hover;
-    const s = shared.current;
-    u.uPointerDir.value.set(
-      (s.pointer.x - s.center.x) * s.aspect,
-      s.pointer.y - s.center.y,
-    );
+    u.uHover.value = hover.current;
+    u.uPointer.value.copy(pointerWorld.current);
   });
 
   return (
-    <mesh ref={mesh} position={[0, GROUP_Y, 0]}>
-      <planeGeometry args={[8.2, 8.2]} />
+    <points rotation={[DISK_TILT, 0, 0.1]}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[attrs.positions, 3]} />
+        <bufferAttribute attach="attributes-aRadius" args={[attrs.aRadius, 1]} />
+        <bufferAttribute attach="attributes-aAngle" args={[attrs.aAngle, 1]} />
+        <bufferAttribute attach="attributes-aSpeed" args={[attrs.aSpeed, 1]} />
+        <bufferAttribute attach="attributes-aScale" args={[attrs.aScale, 1]} />
+        <bufferAttribute attach="attributes-aHeight" args={[attrs.aHeight, 1]} />
+      </bufferGeometry>
       <shaderMaterial
         ref={mat}
-        vertexShader={bhVert}
-        fragmentShader={bhFrag}
+        vertexShader={diskVert}
+        fragmentShader={diskFrag}
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        toneMapped={false}
+        blending={THREE.AdditiveBlending}
       />
-    </mesh>
+    </points>
+  );
+}
+
+function AccretionDisk({
+  reduced,
+  pointerWorld,
+  hover,
+}: {
+  reduced: boolean;
+  pointerWorld: React.MutableRefObject<THREE.Vector3>;
+  hover: React.MutableRefObject<number>;
+}) {
+  const disk = useDiskAttributes(DISK_COUNT, 1.15, 3.85, 0.03);
+  const ring = useDiskAttributes(RING_COUNT, 0.95, 1.35, 0.012);
+  return (
+    <>
+      <DiskPoints
+        attrs={disk}
+        size={0.85}
+        reduced={reduced}
+        pointerWorld={pointerWorld}
+        hover={hover}
+      />
+      <DiskPoints
+        attrs={ring}
+        size={0.7}
+        reduced={reduced}
+        pointerWorld={pointerWorld}
+        hover={hover}
+      />
+    </>
   );
 }
 
@@ -213,8 +247,8 @@ const dustFrag = /* glsl */ `
   void main() {
     vec2 c = gl_PointCoord - 0.5;
     if (length(c) > 0.5) discard;
-    float a = smoothstep(0.5, 0.0, length(c)) * vAlpha * 0.17;
-    gl_FragColor = vec4(0.86, 0.74, 0.61, a);
+    float a = smoothstep(0.5, 0.0, length(c)) * vAlpha * 0.14;
+    gl_FragColor = vec4(0.86, 0.74, 0.6, a);
   }
 `;
 
@@ -227,12 +261,12 @@ function Dust({ reduced }: { reduced: boolean }) {
     const aScale = new Float32Array(DUST_COUNT);
     const aSeed = new Float32Array(DUST_COUNT);
     for (let i = 0; i < DUST_COUNT; i++) {
-      const r = 4.0 + Math.pow(Math.random(), 0.7) * 15;
+      const r = 3.2 + Math.pow(Math.random(), 0.7) * 13;
       const a = Math.random() * Math.PI * 2;
-      positions[i * 3] = Math.cos(a) * r + (Math.random() - 0.5) * 4;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * r * 0.34;
-      positions[i * 3 + 2] = Math.sin(a) * r + (Math.random() - 0.5) * 4;
-      aScale[i] = 0.5 + Math.random() * 2.4;
+      positions[i * 3] = Math.cos(a) * r + (Math.random() - 0.5) * 3.5;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * r * 0.36;
+      positions[i * 3 + 2] = Math.sin(a) * r + (Math.random() - 0.5) * 3.5;
+      aScale[i] = 0.5 + Math.random() * 2.3;
       aSeed[i] = Math.random();
     }
     return { positions, aScale, aSeed };
@@ -253,11 +287,11 @@ function Dust({ reduced }: { reduced: boolean }) {
   useFrame((_, delta) => {
     const d = Math.min(delta, 0.05);
     if (mat.current) mat.current.uniforms.uTime.value += d;
-    if (ref.current && !reduced) ref.current.rotation.y += d * 0.008;
+    if (ref.current && !reduced) ref.current.rotation.y += d * 0.01;
   });
 
   return (
-    <points ref={ref} rotation={[DISK_TILT, 0, 0.08]}>
+    <points ref={ref} rotation={[DISK_TILT, 0, 0.1]}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         <bufferAttribute attach="attributes-aScale" args={[aScale, 1]} />
@@ -285,14 +319,15 @@ function Starfield() {
     for (let i = 0; i < STAR_COUNT; i++) {
       const v = new THREE.Vector3()
         .randomDirection()
-        .multiplyScalar(20 + Math.random() * 26);
+        .multiplyScalar(18 + Math.random() * 26);
       p.set([v.x, v.y, v.z], i * 3);
     }
     return p;
   }, []);
 
   useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += Math.min(delta, 0.05) * 0.0015;
+    // slow drift
+    if (ref.current) ref.current.rotation.y += Math.min(delta, 0.05) * 0.0018;
   });
 
   return (
@@ -301,11 +336,11 @@ function Starfield() {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.036}
+        size={0.035}
         sizeAttenuation
-        color="#a7b2c6"
+        color="#94a3b8"
         transparent
-        opacity={0.5}
+        opacity={0.45}
         depthWrite={false}
       />
     </points>
@@ -316,20 +351,24 @@ function Starfield() {
 
 const lensFrag = /* glsl */ `
   uniform vec2 uCenter;
+  uniform vec2 uPointer;
   uniform float uAspect;
   uniform float uStrength;
   uniform float uRadius;
   uniform float uSwirl;
+  uniform float uPointerAmt;
 
   void mainUv(inout vec2 uv) {
     vec2 d = uv - uCenter;
     d.x *= uAspect;
     float dist = length(d);
 
-    float pull = uStrength * (uRadius * uRadius) / (dist * dist + 0.0012);
-    pull = min(pull, 0.9);
+    // gravitational deflection: sample coordinates are pulled inward ~ 1/dist^2
+    float pull = uStrength * (uRadius * uRadius) / (dist * dist + 0.0010);
+    pull = min(pull, 0.92);
 
-    float ang = uSwirl * uStrength / (dist + 0.06);
+    // frame dragging — space swirls around the hole
+    float ang = uSwirl * uStrength / (dist + 0.05);
     float s = sin(ang), c = cos(ang);
     d = mat2(c, -s, s, c) * d;
 
@@ -337,6 +376,13 @@ const lensFrag = /* glsl */ `
     d -= dir * pull * dist;
     d.x /= uAspect;
     uv = uCenter + d;
+
+    // a soft moving bulge that follows the cursor
+    vec2 pd = (uv - uPointer);
+    pd.x *= uAspect;
+    float pl = length(pd);
+    float bulge = uPointerAmt * 0.05 / (pl * pl + 0.03);
+    uv -= (pd / max(pl, 1e-4)) * min(bulge, 0.06) * vec2(1.0 / uAspect, 1.0);
   }
 `;
 
@@ -345,10 +391,12 @@ class LensEffectImpl extends Effect {
     super("BlackHoleLens", lensFrag, {
       uniforms: new Map<string, THREE.Uniform>([
         ["uCenter", new THREE.Uniform(new THREE.Vector2(0.5, 0.5))],
+        ["uPointer", new THREE.Uniform(new THREE.Vector2(0.5, 0.5))],
         ["uAspect", new THREE.Uniform(1)],
-        ["uStrength", new THREE.Uniform(0.05)],
-        ["uRadius", new THREE.Uniform(0.16)],
-        ["uSwirl", new THREE.Uniform(0.04)],
+        ["uStrength", new THREE.Uniform(0.08)],
+        ["uRadius", new THREE.Uniform(0.15)],
+        ["uSwirl", new THREE.Uniform(0.1)],
+        ["uPointerAmt", new THREE.Uniform(0)],
       ]),
     });
   }
@@ -364,9 +412,11 @@ function Lens({ shared }: { shared: React.MutableRefObject<Shared> }) {
     const u = eff.uniforms;
     const s = shared.current;
     (u.get("uCenter")!.value as THREE.Vector2).copy(s.center);
+    (u.get("uPointer")!.value as THREE.Vector2).copy(s.pointer);
     u.get("uAspect")!.value = s.aspect;
-    u.get("uStrength")!.value = 0.05 + s.hover * 0.22;
-    u.get("uSwirl")!.value = 0.04 + s.hover * 0.16;
+    u.get("uStrength")!.value = 0.075 + s.hover * 0.3;
+    u.get("uSwirl")!.value = 0.06 + s.hover * 0.24;
+    u.get("uPointerAmt")!.value = s.hover;
   });
   return <LensEffect ref={ref} />;
 }
@@ -381,25 +431,37 @@ function Scene({
   shared: React.MutableRefObject<Shared>;
 }) {
   const { camera, size } = useThree();
+  const pointerWorld = useRef(new THREE.Vector3());
   const hover = useRef(0);
   const tmp = useRef(new THREE.Vector3());
 
   useFrame(() => {
     const s = shared.current;
 
+    // project the cursor onto the disk plane (y = GROUP_Y)
+    tmp.current.set(s.ndc.x, s.ndc.y, 0.5).unproject(camera);
+    tmp.current.sub(camera.position).normalize();
+    const tHit = (GROUP_Y - camera.position.y) / tmp.current.y;
+    pointerWorld.current
+      .copy(camera.position)
+      .addScaledVector(tmp.current, tHit);
+
+    // where is the hole (group origin) on screen?
     const centerNdc = tmp.current.set(0, GROUP_Y, 0).project(camera);
     const cx = centerNdc.x * 0.5 + 0.5;
     const cy = centerNdc.y * 0.5 + 0.5;
+
     const pux = s.ndc.x * 0.5 + 0.5;
     const puy = s.ndc.y * 0.5 + 0.5;
 
+    // hover ramps up as the cursor nears the hole (screen space, aspect aware)
     const aspect = size.width / size.height;
     const dx = (pux - cx) * aspect;
     const dy = puy - cy;
-    const near = 1 - Math.min(1, Math.hypot(dx, dy) / 0.95);
+    const near = 1 - Math.min(1, Math.hypot(dx, dy) / 0.85);
     const target =
       reduced || s.active < 0.5 ? 0 : Math.max(0.12, near * near);
-    hover.current += (target - hover.current) * 0.05;
+    hover.current += (target - hover.current) * 0.06;
 
     s.center.set(cx, cy);
     s.pointer.set(pux, puy);
@@ -411,7 +473,19 @@ function Scene({
     <>
       <Starfield />
       <Dust reduced={reduced} />
-      <BlackHoleCore reduced={reduced} shared={shared} />
+      <group position={[0, GROUP_Y, 0]}>
+        <AccretionDisk
+          reduced={reduced}
+          pointerWorld={pointerWorld}
+          hover={hover}
+        />
+
+        {/* event horizon — opaque, occludes the disk behind it */}
+        <mesh>
+          <sphereGeometry args={[0.9, 64, 64]} />
+          <meshBasicMaterial color="#000000" />
+        </mesh>
+      </group>
     </>
   );
 }
@@ -435,6 +509,8 @@ export default function BlackHole() {
   });
   const elRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Track the pointer across the whole hero (including over the headline),
+  // not just when it is directly over the canvas.
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       const el = elRef.current;
@@ -468,7 +544,7 @@ export default function BlackHole() {
   return (
     <Canvas
       camera={{ position: [0, 0, 7.5], fov: 40 }}
-      dpr={[1, 1.6]}
+      dpr={[1, 2]}
       gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
       style={{ background: "transparent" }}
       onCreated={({ gl }) => {
@@ -485,8 +561,8 @@ export default function BlackHole() {
         <Lens shared={shared} />
         <Bloom
           intensity={0.7}
-          luminanceThreshold={0.5}
-          luminanceSmoothing={0.9}
+          luminanceThreshold={0.42}
+          luminanceSmoothing={0.85}
           mipmapBlur
           radius={0.6}
         />

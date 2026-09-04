@@ -2,8 +2,8 @@
 
 Personal portfolio site: bio, tech stack, experience, projects and education,
 with an interactive black-hole hero — a particle accretion disk orbiting an
-event horizon, with real-time gravitational lensing that intensifies as the
-cursor approaches.
+event horizon amid stellar dust, with screen-space gravitational lensing that
+intensifies as the cursor approaches (from anywhere over the hero).
 
 Built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**,
 **React Three Fiber / three.js**, **@react-three/postprocessing** (bloom + a
