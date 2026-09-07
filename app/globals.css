@@ -53,22 +53,14 @@ body {
 
 @media (prefers-reduced-motion: no-preference) {
   .cst-star {
-    animation: cst-twinkle 4.2s ease-in-out infinite;
-  }
-  .cst-star:nth-of-type(2n) {
-    animation-duration: 5.6s;
-    animation-delay: -2.4s;
-  }
-  .cst-star:nth-of-type(3n) {
-    animation-duration: 6.8s;
-    animation-delay: -1.1s;
+    animation: cst-twinkle 5s ease-in-out infinite;
   }
 }
 
 @keyframes cst-twinkle {
   0%,
   100% {
-    opacity: 0.5;
+    opacity: 0.62;
   }
   50% {
     opacity: 1;

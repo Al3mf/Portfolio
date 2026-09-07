@@ -1,175 +1,185 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { draco } from "@/lib/constellations";
 
-type Pt = { id: string; x: number; y: number; bright?: boolean };
+const SECTION_IDS = [
+  "about",
+  "stack",
+  "experience",
+  "projects",
+  "education",
+  "contact",
+];
 
-const constellation = draco;
+const C = draco;
 
+/**
+ * The constellation sits behind the page as a fixed scene. Scrolling pans a
+ * camera along the figure head -> tail, with the six sections evenly dividing
+ * the traversal, so each section brings a new stretch of the dragon into view.
+ */
 export default function Constellation() {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [pts, setPts] = useState<Pt[]>([]);
-  const [dims, setDims] = useState({ w: 0, h: 0 });
-  const [drawn, setDrawn] = useState(false);
-  const reduceRef = useRef(false);
+  const [cam, setCam] = useState({ tx: 0, ty: 0, scale: 1.4 });
+  const [opacity, setOpacity] = useState(0);
+  const [twinkle, setTwinkle] = useState(true);
 
   useEffect(() => {
-    reduceRef.current = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    if (reduceRef.current) setDrawn(true);
-
+    setTwinkle(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     let raf = 0;
 
-    const measure = () => {
-      const main = svgRef.current?.parentElement as HTMLElement | null;
-      if (!main) return;
+    const update = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const scale = Math.min(Math.max(Math.max(vw, vh) / 1150, 1.05), 2.1);
 
-      if (window.innerWidth < 1024) {
-        setPts([]);
-        return;
-      }
+      const els = SECTION_IDS.map((id) => document.getElementById(id));
+      if (els.some((el) => !el)) return;
+      const sections = els as HTMLElement[];
 
-      // layout position relative to <main>, ignoring the sections' reveal transform
-      const posOf = (el: HTMLElement) => {
-        let x = 0;
-        let y = 0;
-        let node: HTMLElement | null = el;
-        while (node && node !== main) {
-          x += node.offsetLeft;
-          y += node.offsetTop;
-          node = node.offsetParent as HTMLElement | null;
-        }
-        return { x, y, h: el.offsetHeight };
-      };
+      const scrollY = window.scrollY;
+      const focus = scrollY + vh * 0.5;
+      const tops = sections.map((s) => s.offsetTop);
+      const bottoms = sections.map((s) => s.offsetTop + s.offsetHeight);
 
-      const anchors: Record<string, { x: number; y: number }> = {};
-      for (const s of constellation.stars) {
-        if (!s.anchor) continue;
-        const el = document.querySelector<HTMLElement>(
-          `[data-constellation="${s.anchor}"]`,
-        );
-        if (!el) continue;
-        const p = posOf(el);
-        anchors[s.anchor] = { x: p.x, y: p.y + p.h / 2 };
-      }
-
-      const first = constellation.stars.find((s) => s.anchor && anchors[s.anchor]);
-      if (!first) {
-        setPts([]);
-        return;
-      }
-      const base = anchors[first.anchor as string];
-
-      const next: Pt[] = [];
-      for (const s of constellation.stars) {
-        if (s.anchor) {
-          const a = anchors[s.anchor];
-          if (a) next.push({ id: s.id, x: a.x - s.offset, y: a.y, bright: s.bright });
-        } else {
-          next.push({
-            id: s.id,
-            x: base.x - s.offset,
-            y: base.y + (s.dy ?? 0),
-            bright: s.bright,
-          });
+      // how far through the six sections the viewport centre sits (0 .. 6)
+      let progress: number;
+      if (focus <= tops[0]) progress = 0;
+      else if (focus >= bottoms[5]) progress = 6;
+      else {
+        progress = 6;
+        for (let i = 0; i < 6; i++) {
+          if (focus < bottoms[i]) {
+            progress = i + (focus - tops[i]) / (bottoms[i] - tops[i]);
+            break;
+          }
         }
       }
+      const t = Math.max(0, Math.min(1, progress / 6));
 
-      setPts(next);
-      setDims({ w: main.offsetWidth, h: main.scrollHeight });
+      // camera walks the star path, evenly divided across the sections
+      const seg = t * (C.path.length - 1);
+      const i0 = Math.min(Math.floor(seg), C.path.length - 2);
+      const f = seg - i0;
+      const a = C.stars[C.path[i0]];
+      const b = C.stars[C.path[i0 + 1]];
+      const camX = a.x + (b.x - a.x) * f;
+      const camY = a.y + (b.y - a.y) * f;
+
+      setCam({
+        tx: vw / 2 - camX * scale,
+        ty: vh / 2 - camY * scale,
+        scale,
+      });
+
+      // fade in once the hero is behind us
+      const heroH =
+        document.querySelector("header")?.offsetHeight ?? vh;
+      // capped below 1 so the figure stays a backdrop, never fights the copy
+      setOpacity(
+        Math.max(0, Math.min(1, (scrollY - heroH * 0.4) / (heroH * 0.45))) *
+          0.52,
+      );
     };
 
-    const schedule = () => {
+    const onScroll = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(measure);
+      raf = requestAnimationFrame(update);
     };
 
-    schedule();
-    const ro = new ResizeObserver(schedule);
-    const main = svgRef.current?.parentElement;
-    if (main) ro.observe(main);
-    window.addEventListener("resize", schedule);
-    document.fonts?.ready.then(schedule).catch(() => {});
-    const t1 = window.setTimeout(schedule, 400);
-    const t2 = window.setTimeout(schedule, 1200);
-    const t3 = window.setTimeout(() => {
-      if (!reduceRef.current) setDrawn(true);
-    }, 250);
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    document.fonts?.ready.then(update).catch(() => {});
+    const t1 = window.setTimeout(update, 400);
+    const t2 = window.setTimeout(update, 1400);
 
     return () => {
       cancelAnimationFrame(raf);
-      ro.disconnect();
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
       window.clearTimeout(t1);
       window.clearTimeout(t2);
-      window.clearTimeout(t3);
     };
   }, []);
 
-  const byId: Record<string, Pt> = {};
-  for (const p of pts) byId[p.id] = p;
+  const at = (sx: number, sy: number) =>
+    [cam.tx + sx * cam.scale, cam.ty + sy * cam.scale] as const;
 
   return (
-    <svg
-      ref={svgRef}
+    <div
       aria-hidden="true"
-      className="pointer-events-none absolute left-0 top-0 -z-10 hidden lg:block"
-      width={dims.w || 1}
-      height={dims.h || 1}
-      style={{ overflow: "visible" }}
+      className="pointer-events-none fixed inset-0 -z-10 hidden overflow-hidden md:block"
+      style={{ opacity, transition: "opacity 500ms ease" }}
     >
-      <defs>
-        <filter id="cst-glow" x="-300%" y="-300%" width="700%" height="700%">
-          <feGaussianBlur stdDeviation="2.4" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
+      <svg className="h-full w-full" style={{ overflow: "visible" }}>
+        <defs>
+          <radialGradient id="cst-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(190,206,255,0.5)" />
+            <stop offset="40%" stopColor="rgba(150,172,240,0.15)" />
+            <stop offset="100%" stopColor="rgba(150,172,240,0)" />
+          </radialGradient>
+        </defs>
 
-      {pts.length >= 2 ? (
-        <g style={{ opacity: drawn ? 1 : 0, transition: "opacity 500ms ease-out" }}>
-          {constellation.lines.map(([a, b], i) => {
-            const pa = byId[a];
-            const pb = byId[b];
-            if (!pa || !pb) return null;
-            const len = Math.hypot(pb.x - pa.x, pb.y - pa.y);
-            return (
-              <line
-                key={`${a}-${b}`}
-                x1={pa.x}
-                y1={pa.y}
-                x2={pb.x}
-                y2={pb.y}
-                stroke="var(--constellation-line)"
-                strokeWidth={1}
-                strokeLinecap="round"
-                style={{
-                  strokeDasharray: len,
-                  strokeDashoffset: drawn ? 0 : len,
-                  transition: reduceRef.current
-                    ? "none"
-                    : `stroke-dashoffset 850ms ${150 + i * 85}ms ease-out`,
-                }}
-              />
-            );
-          })}
-          {pts.map((p) => (
-            <circle
-              key={p.id}
-              className="cst-star"
-              cx={p.x}
-              cy={p.y}
-              r={p.bright ? 3 : 2}
-              fill="var(--constellation-star)"
-              filter="url(#cst-glow)"
+        {C.lines.map(([ai, bi], i) => {
+          const [x1, y1] = at(C.stars[ai].x, C.stars[ai].y);
+          const [x2, y2] = at(C.stars[bi].x, C.stars[bi].y);
+          return (
+            <line
+              key={i}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="var(--constellation-line)"
+              strokeWidth={1.3}
+              strokeLinecap="round"
             />
-          ))}
-        </g>
-      ) : null}
-    </svg>
+          );
+        })}
+
+        {C.stars.map((s, i) => {
+          const [x, y] = at(s.x, s.y);
+          return (
+            <StarGlint key={i} x={x} y={y} mag={s.mag} idx={i} twinkle={twinkle} />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function StarGlint({
+  x,
+  y,
+  mag,
+  idx,
+  twinkle,
+}: {
+  x: number;
+  y: number;
+  mag: number;
+  idx: number;
+  twinkle: boolean;
+}) {
+  const L = 8 + mag * 13; // spike length
+  const w = L * 0.15; // waist
+  const d = `M0,${-L} L${w},${-w} L${L},0 L${w},${w} L0,${L} L${-w},${w} L${-L},0 L${-w},${-w} Z`;
+
+  return (
+    <g
+      transform={`translate(${x} ${y})`}
+      className={twinkle ? "cst-star" : undefined}
+      style={twinkle ? { animationDelay: `${-((idx * 0.83) % 5)}s` } : undefined}
+    >
+      <circle r={L * 2.2} fill="url(#cst-halo)" />
+      <path d={d} fill="var(--constellation-star)" />
+      <path
+        d={d}
+        fill="rgba(255,255,255,0.85)"
+        transform="rotate(45) scale(0.4)"
+      />
+      <circle r={1 + mag * 1.4} fill="#ffffff" />
+    </g>
   );
 }

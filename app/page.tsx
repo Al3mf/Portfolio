@@ -204,10 +204,7 @@ export default function Home() {
             ))}
           </div>
 
-          <h3
-            data-constellation="leadership"
-            className="mb-6 mt-14 font-mono text-sm font-semibold uppercase tracking-[0.16em] text-ink"
-          >
+          <h3 className="mb-6 mt-14 font-mono text-base font-semibold uppercase tracking-[0.14em] text-ink">
             Leadership &amp; Activities
           </h3>
           <div className="space-y-6">
