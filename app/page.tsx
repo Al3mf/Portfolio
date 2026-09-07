@@ -2,6 +2,7 @@ import Hero from "@/components/Hero";
 import Nav from "@/components/Nav";
 import Section from "@/components/Section";
 import Pill from "@/components/Pill";
+import Constellation from "@/components/Constellation";
 import { techIcon } from "@/lib/tech-icons";
 import {
   activities,
@@ -17,7 +18,8 @@ export default function Home() {
   return (
     <>
       <Nav />
-      <main>
+      <main className="relative">
+        <Constellation />
         <Hero />
 
         {/* About ------------------------------------------------------------ */}
@@ -202,7 +204,10 @@ export default function Home() {
             ))}
           </div>
 
-          <h3 className="mb-6 mt-14 font-mono text-sm font-semibold uppercase tracking-[0.16em] text-ink">
+          <h3
+            data-constellation="leadership"
+            className="mb-6 mt-14 font-mono text-sm font-semibold uppercase tracking-[0.16em] text-ink"
+          >
             Leadership &amp; Activities
           </h3>
           <div className="space-y-6">
