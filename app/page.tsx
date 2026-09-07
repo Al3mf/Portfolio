@@ -52,9 +52,9 @@ export default function Home() {
             {stack.map((group) => (
               <div
                 key={group.label}
-                className="grid gap-2 sm:grid-cols-[12rem_1fr] sm:items-center sm:gap-5"
+                className="grid gap-2 sm:grid-cols-[14rem_1fr] sm:items-center sm:gap-5"
               >
-                <dt className="font-mono text-[12px] uppercase tracking-[0.08em] text-ink-faint">
+                <dt className="font-mono text-sm uppercase tracking-[0.06em] text-ink-faint">
                   {group.label}
                 </dt>
                 <dd className="space-y-2">

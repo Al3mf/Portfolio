@@ -10,7 +10,7 @@ export default function Pill({
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-base-border bg-base-raised px-2.5 py-1 text-[12px] text-ink-dim">
       {Icon ? (
-        <Icon className="h-3.5 w-3.5 shrink-0 text-ink-faint" aria-hidden />
+        <Icon className="h-3.5 w-3.5 shrink-0 text-ink" aria-hidden />
       ) : null}
       {children}
     </span>
