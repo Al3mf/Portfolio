@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { sectionLateral } from "@/lib/constellations";
 
 export default function Section({
   id,
@@ -13,11 +14,19 @@ export default function Section({
   children: ReactNode;
 }) {
   const reduce = useReducedMotion();
+  const lat = sectionLateral[id];
+
+  // slide the section sideways so it lands beside its star on the figure
+  const slide: CSSProperties =
+    lat === undefined
+      ? {}
+      : { transform: `translateX(calc((${lat} - 0.5) * 2 * var(--cst-amp)))` };
 
   return (
     <section
       id={id}
-      className="scroll-mt-24 border-t border-base-border py-16 sm:py-20"
+      className="scroll-mt-24 py-16 sm:py-20"
+      style={slide}
     >
       <motion.div
         className="mx-auto w-full max-w-content px-6"
