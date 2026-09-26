@@ -203,7 +203,7 @@ export default function Constellation() {
       g.stars.forEach((s, i) => {
         const el = starRefs.current[i];
         if (!el) return;
-        const lit = smoothstep(s.at - 0.05, s.at + 0.015, p);
+        const lit = smoothstep(s.at - 0.055, s.at - 0.005, p);
         const scale = 0.72 + 0.38 * lit;
         el.setAttribute("transform", `translate(${s.x} ${s.y}) scale(${scale.toFixed(3)})`);
         el.style.opacity = String(0.2 + 0.8 * lit);
