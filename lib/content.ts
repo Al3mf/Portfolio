@@ -12,6 +12,7 @@ export const profile = {
   linkedin: "https://www.linkedin.com/in/alejandro-melo-flores/",
   // Drop a photo at /public/avatar.jpg to show it in the hero. Leave as null for none.
   avatar: null as string | null,
+  cv: "/Alejandro_Melo_CV.pdf",
   bio: "Systems Engineering and Applied Computer Science student with 3+ years of professional experience as a Quality Assurance Engineer for international web and mobile teams. I care about problem-solving, continuous learning, and shipping software people can trust — hands-on with Python, TypeScript, and C across logistics, video games, research, and infrastructure.",
 };
 

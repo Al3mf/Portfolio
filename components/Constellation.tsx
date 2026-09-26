@@ -5,10 +5,14 @@ import { draco, isAnchor } from "@/lib/constellations";
 
 type Star = { x: number; y: number; mag: number; anchor: boolean; at: number };
 
+/** below this width the figure collapses into a thin rail beside the text */
+const COMPACT_BP = 1024;
 /** px between a star and the heading it belongs to */
-const GAP = 46;
+const GAP = { wide: 46, rail: 20 };
 /** how far a mid star may bulge into the gutter */
-const MAX_BULGE = 130;
+const MAX_BULGE = { wide: 130, rail: 18 };
+/** everything the figure draws shrinks with it */
+const STAR_SCALE = { wide: 1, rail: 0.6 };
 
 type Geom = {
   stars: Star[];
@@ -21,6 +25,7 @@ type Geom = {
   y0: number;
   y1: number;
   mainTop: number;
+  scale: number;
 };
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -50,6 +55,9 @@ export default function Constellation() {
       if (!main) return;
       const mainRect = main.getBoundingClientRect();
       const mainTop = mainRect.top + window.scrollY;
+      const rail = window.innerWidth < COMPACT_BP;
+      const gap = rail ? GAP.rail : GAP.wide;
+      const scale = rail ? STAR_SCALE.rail : STAR_SCALE.wide;
 
       const posOf = (el: HTMLElement) => {
         let x = 0;
@@ -73,7 +81,7 @@ export default function Constellation() {
         if (!el) continue;
         const p = posOf(el);
         const left = el.getBoundingClientRect().left - mainRect.left;
-        anchorPt[n.section] = { x: left - GAP, y: p.y + p.h / 2 };
+        anchorPt[n.section] = { x: left - gap, y: p.y + p.h / 2 };
       }
 
       const anchors = draco.spine.filter(isAnchor).filter((n) => anchorPt[n.section]);
@@ -83,14 +91,17 @@ export default function Constellation() {
         return;
       }
 
-      // if the gutter is too tight (small screens) don't draw at all
+      // if there is no gutter at all (very narrow phones) don't draw
       const leftMost = Math.min(...anchors.map((n) => anchorPt[n.section].x));
-      if (leftMost < 40) {
+      if (leftMost < (rail ? 14 : 40)) {
         setGeom(null);
         geomRef.current = null;
         return;
       }
-      const bulgeMax = Math.min(MAX_BULGE, Math.max(0, leftMost - 24));
+      const bulgeMax = Math.min(
+        rail ? MAX_BULGE.rail : MAX_BULGE.wide,
+        Math.max(0, leftMost - (rail ? 10 : 24)),
+      );
 
       // walk the spine: anchors are fixed, mids interpolate then bulge left
       const stars: Star[] = [];
@@ -136,9 +147,11 @@ export default function Constellation() {
 
       // head quad, out in the gutter beside the first anchor
       const first = stars[0];
+      const maxDx = Math.max(...draco.head.map((h) => h.dx));
+      const headScale = Math.min(scale, (first.x - (rail ? 6 : 16)) / (maxDx || 1));
       const head: Star[] = draco.head.map((h) => ({
-        x: first.x - h.dx,
-        y: first.y + h.dy,
+        x: first.x - h.dx * headScale,
+        y: first.y + h.dy * headScale,
         mag: h.mag ?? 0.6,
         anchor: false,
         at: 0,
@@ -159,6 +172,7 @@ export default function Constellation() {
         y0: stars[0].y,
         y1: stars[stars.length - 1].y,
         mainTop,
+        scale,
       };
       setGeom(g);
       geomRef.current = g;
@@ -256,7 +270,7 @@ export default function Constellation() {
   return (
     <svg
       aria-hidden="true"
-      className="pointer-events-none absolute left-0 top-0 -z-10 hidden lg:block"
+      className="pointer-events-none absolute left-0 top-0 -z-10"
       width={size.w || 1}
       height={size.h || 1}
       style={{ overflow: "visible" }}
@@ -281,7 +295,7 @@ export default function Constellation() {
             d={geom.headPath}
             fill="none"
             stroke="var(--constellation-line)"
-            strokeWidth={1}
+            strokeWidth={geom.scale}
             strokeLinejoin="round"
             opacity={0.4}
           />
@@ -289,7 +303,7 @@ export default function Constellation() {
             d={geom.path}
             fill="none"
             stroke="var(--constellation-line)"
-            strokeWidth={1}
+            strokeWidth={geom.scale}
             strokeLinecap="round"
             opacity={0.4}
           />
@@ -299,7 +313,7 @@ export default function Constellation() {
             d={geom.path}
             fill="none"
             stroke="var(--constellation-trail)"
-            strokeWidth={1.5}
+            strokeWidth={1.5 * geom.scale}
             strokeLinecap="round"
             style={{
               strokeDasharray: geom.total,
@@ -314,7 +328,7 @@ export default function Constellation() {
             d={geom.headPath}
             fill="none"
             stroke="var(--constellation-trail)"
-            strokeWidth={1.4}
+            strokeWidth={1.4 * geom.scale}
             strokeLinejoin="round"
             style={{
               opacity: 0,
@@ -330,7 +344,7 @@ export default function Constellation() {
               transform={`translate(${s.x} ${s.y})`}
               style={{ opacity: 0.2 }}
             >
-              <StarShape mag={s.mag} anchor />
+              <StarShape mag={s.mag} anchor scale={geom.scale} />
             </g>
           ))}
 
@@ -343,14 +357,14 @@ export default function Constellation() {
               transform={`translate(${s.x} ${s.y})`}
               style={{ opacity: 0.2, transition: "none" }}
             >
-              <StarShape mag={s.mag} anchor={s.anchor} />
+              <StarShape mag={s.mag} anchor={s.anchor} scale={geom.scale} />
             </g>
           ))}
 
           {/* the light you're riding along the figure */}
           <g ref={cometRef} style={{ opacity: 0 }}>
-            <circle r={16} fill="url(#cst-comet)" />
-            <circle r={2.2} fill="#ffffff" />
+            <circle r={16 * geom.scale} fill="url(#cst-comet)" />
+            <circle r={2.2 * geom.scale} fill="#ffffff" />
           </g>
         </g>
       ) : null}
@@ -358,10 +372,18 @@ export default function Constellation() {
   );
 }
 
-function StarShape({ mag, anchor }: { mag: number; anchor: boolean }) {
-  const core = 0.9 + mag * 1.1;
-  const halo = 5 + mag * 7;
-  const spike = 4 + mag * 6;
+function StarShape({
+  mag,
+  anchor,
+  scale,
+}: {
+  mag: number;
+  anchor: boolean;
+  scale: number;
+}) {
+  const core = (0.9 + mag * 1.1) * scale;
+  const halo = (5 + mag * 7) * scale;
+  const spike = (4 + mag * 6) * scale;
   const w = spike * 0.1;
 
   return (
