@@ -29,7 +29,7 @@ export default function Section({
       style={slide}
     >
       <motion.div
-        className="mx-auto w-full max-w-content px-6"
+        className="mx-auto w-full max-w-content pl-14 pr-6 lg:px-6"
         initial={reduce ? false : { opacity: 0, y: 18 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}

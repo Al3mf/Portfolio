@@ -43,7 +43,30 @@ export default function Hero() {
           {profile.bio}
         </p>
 
-        <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+        <a
+          href={profile.cv}
+          download
+          className="mt-7 inline-flex items-center gap-2 rounded-full border border-base-border bg-base-raised/70 px-4 py-2 text-sm font-medium text-ink backdrop-blur transition-colors hover:border-ink/40 hover:bg-base-raised"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M12 3v12" />
+            <path d="m7 10 5 5 5-5" />
+            <path d="M5 21h14" />
+          </svg>
+          Download CV
+        </a>
+
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
           <a
             href={`mailto:${profile.email}`}
             className="text-ink underline decoration-base-border underline-offset-4 transition-colors hover:decoration-ink"
