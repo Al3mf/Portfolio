@@ -36,6 +36,8 @@ export default function Constellation() {
   const trailRef = useRef<SVGPathElement>(null);
   const cometRef = useRef<SVGGElement>(null);
   const starRefs = useRef<(SVGGElement | null)[]>([]);
+  const headRefs = useRef<(SVGGElement | null)[]>([]);
+  const headTrailRef = useRef<SVGPathElement>(null);
   const reduceRef = useRef(false);
 
   useEffect(() => {
@@ -181,8 +183,14 @@ export default function Constellation() {
     const applyProgress = () => {
       const g = geomRef.current;
       if (!g) return;
-      const focus = window.scrollY + window.innerHeight * 0.52 - g.mainTop;
-      const p = clamp01((focus - g.y0) / (g.y1 - g.y0 || 1));
+      const vh = window.innerHeight;
+      const focus = window.scrollY + vh * 0.52 - g.mainTop;
+      // the focus point can't go past the bottom of the page, so squeeze the
+      // end of the figure into whatever scroll actually remains
+      const maxScroll = document.documentElement.scrollHeight - vh;
+      const reachable = maxScroll + vh * 0.52 - g.mainTop;
+      const end = Math.min(g.y1, reachable);
+      const p = clamp01((focus - g.y0) / (end - g.y0 || 1));
 
       if (trailRef.current) {
         trailRef.current.style.strokeDashoffset = String(g.total * (1 - p));
@@ -199,6 +207,19 @@ export default function Constellation() {
         const scale = 0.72 + 0.38 * lit;
         el.setAttribute("transform", `translate(${s.x} ${s.y}) scale(${scale.toFixed(3)})`);
         el.style.opacity = String(0.2 + 0.8 * lit);
+      });
+
+      // the head sits at the very start of the figure — it lights with it
+      const headLit = smoothstep(-0.02, 0.05, p);
+      if (headTrailRef.current) {
+        headTrailRef.current.style.opacity = String(headLit);
+      }
+      g.head.forEach((s, i) => {
+        const el = headRefs.current[i];
+        if (!el) return;
+        const scale = 0.72 + 0.38 * headLit;
+        el.setAttribute("transform", `translate(${s.x} ${s.y}) scale(${scale.toFixed(3)})`);
+        el.style.opacity = String(0.2 + 0.8 * headLit);
       });
     };
 
@@ -262,7 +283,7 @@ export default function Constellation() {
             stroke="var(--constellation-line)"
             strokeWidth={1}
             strokeLinejoin="round"
-            opacity={0.55}
+            opacity={0.4}
           />
           <path
             d={geom.path}
@@ -287,8 +308,30 @@ export default function Constellation() {
             }}
           />
 
+          {/* head quad, lit together with the start of the figure */}
+          <path
+            ref={headTrailRef}
+            d={geom.headPath}
+            fill="none"
+            stroke="var(--constellation-trail)"
+            strokeWidth={1.4}
+            strokeLinejoin="round"
+            style={{
+              opacity: 0,
+              filter: "drop-shadow(0 0 3px rgba(150,185,255,0.55))",
+            }}
+          />
           {geom.head.map((s, i) => (
-            <Star key={`h${i}`} mag={s.mag} transform={`translate(${s.x} ${s.y})`} opacity={0.55} />
+            <g
+              key={`h${i}`}
+              ref={(el) => {
+                headRefs.current[i] = el;
+              }}
+              transform={`translate(${s.x} ${s.y})`}
+              style={{ opacity: 0.2 }}
+            >
+              <StarShape mag={s.mag} anchor />
+            </g>
           ))}
 
           {geom.stars.map((s, i) => (
@@ -312,22 +355,6 @@ export default function Constellation() {
         </g>
       ) : null}
     </svg>
-  );
-}
-
-function Star({
-  mag,
-  transform,
-  opacity,
-}: {
-  mag: number;
-  transform: string;
-  opacity: number;
-}) {
-  return (
-    <g transform={transform} style={{ opacity }}>
-      <StarShape mag={mag} anchor />
-    </g>
   );
 }
 
