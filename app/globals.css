@@ -45,6 +45,37 @@ body {
   background: linear-gradient(90deg, #1e1e22 0%, transparent 100%);
 }
 
+/* ---- constellation: the page walks the figure ---- */
+:root {
+  --constellation-line: rgba(151, 178, 226, 0.5);
+  --constellation-trail: rgba(178, 205, 255, 0.85);
+  --constellation-star: rgba(228, 235, 250, 0.96);
+  /* how far sections may slide sideways; 0 until there's gutter to spare */
+  --cst-amp: 0px;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --cst-amp: clamp(0px, calc((100vw - 48rem) / 2 - 3.5rem), 175px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cst-star {
+    animation: cst-twinkle 5s ease-in-out infinite;
+  }
+}
+
+@keyframes cst-twinkle {
+  0%,
+  100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
