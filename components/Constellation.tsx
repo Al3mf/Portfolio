@@ -119,14 +119,24 @@ export default function Constellation() {
         const nB = draco.spine[idxOfAnchors[a + 1]] as { section: string; mag?: number };
         const pB = anchorPt[nB.section];
         const mids = draco.spine.slice(idxOfAnchors[a] + 1, idxOfAnchors[a + 1]);
+
+        // Sections slide sideways, so the straight line between two anchors can
+        // drift right into the copy of the section it passes through. Keep the
+        // whole stretch in the narrower of the two gutters instead of
+        // interpolating towards the next anchor...
+        const railX = Math.min(pA.x, pB.x);
+        // ...and finish it at the bottom of this section, so the sideways move
+        // onto the next anchor happens in the empty band between sections.
+        const secEl = document.getElementById(nA.section);
+        const secBottom = secEl ? posOf(secEl).y + secEl.offsetHeight : pB.y;
+        const yEnd = Math.min(Math.max(secBottom - 8, pA.y + 1), pB.y);
+
         mids.forEach((m, k) => {
-          const f = (k + 1) / (mids.length + 1);
-          const baseX = pA.x + (pB.x - pA.x) * f;
-          const baseY = pA.y + (pB.y - pA.y) * f;
+          const f = (k + 1) / (mids.length || 1);
           const bulge = "bulge" in m ? m.bulge : 0.4;
           stars.push({
-            x: baseX - bulge * bulgeMax,
-            y: baseY,
+            x: railX - bulge * bulgeMax,
+            y: pA.y + (yEnd - pA.y) * f,
             mag: m.mag ?? 0.3,
             anchor: false,
             at: 0,
