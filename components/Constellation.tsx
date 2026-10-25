@@ -26,6 +26,10 @@ type Geom = {
   y1: number;
   mainTop: number;
   scale: number;
+  /** anchors as (page y, lateral 0..1) — the rail the camera rides */
+  camNodes: { y: number; lat: number }[];
+  /** px that one full unit of `lat` is worth, derived from the real layout */
+  ampPx: number;
 };
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -43,6 +47,8 @@ export default function Constellation() {
   const starRefs = useRef<(SVGGElement | null)[]>([]);
   const headRefs = useRef<(SVGGElement | null)[]>([]);
   const headTrailRef = useRef<SVGPathElement>(null);
+  const sceneRef = useRef<SVGGElement>(null);
+  const camRef = useRef(0);
   const reduceRef = useRef(false);
 
   useEffect(() => {
@@ -80,7 +86,9 @@ export default function Constellation() {
           ?.querySelector("h2") as HTMLElement | null;
         if (!el) continue;
         const p = posOf(el);
-        const left = el.getBoundingClientRect().left - mainRect.left;
+        // the sections are already shifted by the camera; store camera-free
+        // coordinates so the geometry stays valid as it moves
+        const left = el.getBoundingClientRect().left - mainRect.left + camRef.current;
         anchorPt[n.section] = { x: left - gap, y: p.y + p.h / 2 };
       }
 
@@ -171,6 +179,21 @@ export default function Constellation() {
           ? `M${first.x},${first.y} L${head[0].x},${head[0].y} L${head[1].x},${head[1].y} L${head[2].x},${head[2].y} Z`
           : "";
 
+      // The lateral offsets come from CSS (`--cst-amp`), which getComputedStyle
+      // reports as a literal clamp() string — so read the amplitude back out of
+      // two anchors that actually landed on the page.
+      const aFirst = anchors[0];
+      const aLast = anchors[anchors.length - 1];
+      const dLat = (aFirst.lat - aLast.lat) * 2;
+      const ampPx =
+        dLat !== 0
+          ? (anchorPt[aFirst.section].x - anchorPt[aLast.section].x) / dLat
+          : 0;
+      const camNodes = anchors.map((n) => ({
+        y: anchorPt[n.section].y,
+        lat: n.lat,
+      }));
+
       const g: Geom = {
         stars,
         head,
@@ -183,6 +206,8 @@ export default function Constellation() {
         y1: stars[stars.length - 1].y,
         mainTop,
         scale,
+        camNodes,
+        ampPx,
       };
       setGeom(g);
       geomRef.current = g;
@@ -209,6 +234,32 @@ export default function Constellation() {
       if (!g) return;
       const vh = window.innerHeight;
       const focus = window.scrollY + vh * 0.52 - g.mainTop;
+
+      // --- camera -------------------------------------------------------
+      // The figure gives every page height a lateral position. Slide the whole
+      // scene to it, so the section you're reading sits centred on its own star
+      // and the ones around it hang off towards theirs: scrolling then reads as
+      // travelling along the constellation rather than down a column.
+      const nodes = g.camNodes;
+      let camLat = nodes[0].lat;
+      if (focus >= nodes[nodes.length - 1].y) {
+        camLat = nodes[nodes.length - 1].lat;
+      } else if (focus > nodes[0].y) {
+        for (let i = 1; i < nodes.length; i++) {
+          if (focus <= nodes[i].y) {
+            const t = smoothstep(nodes[i - 1].y, nodes[i].y, focus);
+            camLat = nodes[i - 1].lat + (nodes[i].lat - nodes[i - 1].lat) * t;
+            break;
+          }
+        }
+      }
+      const camPx = reduceRef.current ? 0 : (camLat - 0.5) * 2 * g.ampPx;
+      if (camPx !== camRef.current) {
+        camRef.current = camPx;
+        document.documentElement.style.setProperty("--cst-cam", `${camPx.toFixed(1)}px`);
+        sceneRef.current?.setAttribute("transform", `translate(${(-camPx).toFixed(1)} 0)`);
+      }
+      // ------------------------------------------------------------------
       // the focus point can't go past the bottom of the page, so squeeze the
       // end of the figure into whatever scroll actually remains
       const maxScroll = document.documentElement.scrollHeight - vh;
@@ -299,7 +350,7 @@ export default function Constellation() {
       </defs>
 
       {geom ? (
-        <g>
+        <g ref={sceneRef}>
           {/* the figure, dim ahead of you */}
           <path
             d={geom.headPath}

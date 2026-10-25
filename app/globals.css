@@ -8,9 +8,14 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 body {
+  /* Sections slide sideways with the constellation camera; clip that sideways
+     travel instead of letting it widen the page. `clip` rather than `hidden`
+     so the body does not become a scroll container (that would break Lenis). */
+  overflow-x: clip;
   background-color: #0a0a0b;
   color: #e7e7e9;
   -webkit-font-smoothing: antialiased;
@@ -46,12 +51,20 @@ body {
 }
 
 /* ---- constellation: the page walks the figure ---- */
+@property --cst-cam {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 :root {
   --constellation-line: rgba(151, 178, 226, 0.5);
   --constellation-trail: rgba(178, 205, 255, 0.85);
   --constellation-star: rgba(228, 235, 250, 0.96);
   /* how far sections may slide sideways; 0 until there's gutter to spare */
   --cst-amp: 0px;
+  /* live lateral position of the constellation camera, driven by scroll */
+  --cst-cam: 0px;
 }
 
 @media (min-width: 1024px) {
