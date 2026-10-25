@@ -30,12 +30,16 @@ export default function Home() {
               mobile products hold up before they reach users — across logistics
               platforms, AAA games and research tooling. I work end to end: from
               refining requirements in grooming, to writing and automating test
-              cases, to validating APIs, webhooks and integrations.
+              cases, to validating APIs, webhooks and integrations — lately
+              leaning on AI coding assistants to author and maintain Playwright
+              suites in a fraction of the time.
             </p>
             <p>
               I&apos;m currently a dual-degree student in Applied Computer Science
               (City University of Seattle) and Systems Engineering (UASLP), and
-              I build side projects in Python and TypeScript to keep my
+              I&apos;m going through Samsung Innovation Campus 2026 on AI and
+              leadership. On the side I build projects in Python and TypeScript
+              — most recently machine learning with OpenCV — to keep my
               engineering sharp.
             </p>
             <div className="flex flex-wrap gap-2 pt-2">

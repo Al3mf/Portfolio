@@ -13,7 +13,7 @@ export const profile = {
   // Drop a photo at /public/avatar.jpg to show it in the hero. Leave as null for none.
   avatar: null as string | null,
   cv: "/Alejandro_Melo_CV.pdf",
-  bio: "Systems Engineering and Applied Computer Science student with 3+ years of professional experience as a Quality Assurance Engineer for international web and mobile teams. I care about problem-solving, continuous learning, and shipping software people can trust — hands-on with Python, TypeScript, and C across logistics, video games, research, and infrastructure.",
+  bio: "Systems Engineering and Applied Computer Science student with 3+ years of professional experience as a Quality Assurance Engineer for international web and mobile teams. I care about problem-solving, continuous learning, and shipping software people can trust — hands-on with Python, TypeScript, and C across logistics, video games, research, and infrastructure. I use AI tools to accelerate test automation, and build machine-learning projects with Python and OpenCV.",
 };
 
 // Grouped the way the CV lists skills: a category, then optional proficiency
@@ -30,22 +30,23 @@ export const stack: StackGroup[] = [
     ],
   },
   {
-    label: "Frameworks & Tools",
-    bands: [{ level: "Intermediate", items: ["Playwright", "Postman"] }],
+    label: "Testing & Automation",
+    bands: [
+      { level: "Intermediate", items: ["Playwright", "Postman"] },
+      { items: ["REST API Testing", "Swagger UI", "Jenkins"] },
+    ],
   },
   {
-    label: "Tools",
+    label: "AI & Machine Learning",
     bands: [
       {
         items: [
-          "Git",
-          "Postman",
-          "Visual Studio",
-          "AI agents",
+          "AI-Assisted Test Automation",
+          "AI Agents",
           "Cursor",
           "Claude",
           "GitHub Copilot",
-          "Google Colab",
+          "OpenCV",
         ],
       },
     ],
@@ -58,8 +59,19 @@ export const stack: StackGroup[] = [
     ],
   },
   {
-    label: "Agile",
-    bands: [{ items: ["Jira", "Azure", "Confluence"] }],
+    label: "Development & Collaboration",
+    bands: [
+      {
+        items: [
+          "Git",
+          "Visual Studio",
+          "Google Colab",
+          "Jira",
+          "Confluence",
+          "Azure",
+        ],
+      },
+    ],
   },
   {
     label: "Soft Skills",
@@ -100,6 +112,7 @@ export const experience: Job[] = [
       "Refined requirements and user stories in grooming sessions, cutting requirement-related rework by 50%.",
       "Reduced production bugs by 20% in the latest sprint through stronger regression and exploratory coverage.",
       "Designed and rolled out a QA onboarding flow that cut new-hire ramp-up time by 30%.",
+      "Leveraged AI coding assistants to generate and maintain Playwright test scripts, cutting test authoring time by 50%.",
     ],
     stack: ["TypeScript", "Jira", "Postman", "Django", "Playwright", "Android Studio", "TestFlight", "Confluence", "REST API", "Swagger UI"],
   },
@@ -142,15 +155,15 @@ export const projects: Project[] = [
   {
     name: "Complexity Discord Bot",
     blurb:
-      "Self-hosted Discord bot that automates registration and tournament management for a 2,000+ player Brawl Stars community. Slash commands, rank/region classification, visual match-statistics generation, file-based participant comparison and per-user rate limiting on a local SQLite database — cutting manual tournament setup time by 50%.",
+      "Self-hosted Discord bot integrating the Discord and Supercell APIs to automate registration and tournament management for a 2,000+ player Brawl Stars community. Slash commands and rank/region classification cut manual setup time by 50%; visual match-statistics generation and file-based participant comparison on a local SQLite database cut admin review time by 50%.",
     stack: ["Node.js", "discord.js", "Supercell API", "SQLite"],
     href: "https://github.com/Al3mf/complexity-discord-bot",
   },
   {
     name: "AI Facial Recognition Access Control",
     blurb:
-      "Four-person prototype for local facial-recognition access control using Haar Cascade detection and LBPH recognition, reaching 85%+ authorization accuracy. Built the full capture–train–recognize pipeline (50+ images per profile) with real-time pass/fail feedback, cutting manual access verification time by 70%.",
-    stack: ["Python", "OpenCV"],
+      "Four-person prototype for local facial-recognition access control using Haar Cascade detection and LBPH recognition, reaching 85%+ authorization accuracy. Built the full capture–train–recognize pipeline (50+ images per profile) to train the machine-learning model, with real-time pass/fail feedback that cut manual access verification time by 70%.",
+    stack: ["Python", "OpenCV", "LBPH"],
     href: "https://github.com/Al3mf/ai-face-id",
   },
 ];
@@ -178,6 +191,13 @@ export const education: School[] = [
     location: "San Luis Potosí, Mexico",
     period: "Expected Jul 2028",
   },
+  {
+    school: "Universidad de Monterrey",
+    short: "UDEM",
+    program: "Samsung Innovation Campus 2026: AI and Leadership",
+    location: "Nuevo León, Mexico",
+    period: "Expected Feb 2027",
+  },
 ];
 
 export type Activity = { title: string; org: string; period: string; detail: string };
@@ -189,13 +209,6 @@ export const activities: Activity[] = [
     period: "Summer 2026",
     detail:
       "Created content for CityU International's official Instagram: student interviews, travel photography and short-form coverage of the Seattle summer program and the international student experience.",
-  },
-  {
-    title: "Semi-Professional Player & In-Game Leader",
-    org: "Competitive Gaming",
-    period: "",
-    detail:
-      "Built communication, teamwork, adaptability and rapid decision-making under pressure while calling strategy across multiple competitive titles.",
   },
 ];
 
