@@ -48,11 +48,14 @@ export default function Constellation() {
   const headRefs = useRef<(SVGGElement | null)[]>([]);
   const headTrailRef = useRef<SVGPathElement>(null);
   const sceneRef = useRef<SVGGElement>(null);
+  const ampRef = useRef<HTMLDivElement>(null);
   const camRef = useRef(0);
   const reduceRef = useRef(false);
 
   useEffect(() => {
-    reduceRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    reduceRef.current = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     let rafMeasure = 0;
     let rafScroll = 0;
 
@@ -62,6 +65,9 @@ export default function Constellation() {
       const mainRect = main.getBoundingClientRect();
       const mainTop = mainRect.top + window.scrollY;
       const rail = window.innerWidth < COMPACT_BP;
+      // getComputedStyle hands back the literal clamp() string for --cst-amp,
+      // so resolve it with a probe element that is actually laid out.
+      const ampPx = ampRef.current?.offsetWidth ?? 0;
       const gap = rail ? GAP.rail : GAP.wide;
       const scale = rail ? STAR_SCALE.rail : STAR_SCALE.wide;
 
@@ -85,14 +91,18 @@ export default function Constellation() {
           .getElementById(n.section)
           ?.querySelector("h2") as HTMLElement | null;
         if (!el) continue;
+        // posOf walks offsetLeft, which ignores transforms — so this is the
+        // heading's position with neither the lateral slide nor the camera in
+        // it. Add back only the slide, and the result never depends on where
+        // the camera happens to be this frame.
         const p = posOf(el);
-        // the sections are already shifted by the camera; store camera-free
-        // coordinates so the geometry stays valid as it moves
-        const left = el.getBoundingClientRect().left - mainRect.left + camRef.current;
-        anchorPt[n.section] = { x: left - gap, y: p.y + p.h / 2 };
+        const slide = (n.lat - 0.5) * 2 * ampPx;
+        anchorPt[n.section] = { x: p.x + slide - gap, y: p.y + p.h / 2 };
       }
 
-      const anchors = draco.spine.filter(isAnchor).filter((n) => anchorPt[n.section]);
+      const anchors = draco.spine
+        .filter(isAnchor)
+        .filter((n) => anchorPt[n.section]);
       if (anchors.length < 2) {
         setGeom(null);
         geomRef.current = null;
@@ -119,14 +129,29 @@ export default function Constellation() {
       });
 
       for (let a = 0; a < idxOfAnchors.length; a++) {
-        const nA = draco.spine[idxOfAnchors[a]] as { section: string; mag?: number };
+        const nA = draco.spine[idxOfAnchors[a]] as {
+          section: string;
+          mag?: number;
+        };
         const pA = anchorPt[nA.section];
-        stars.push({ x: pA.x, y: pA.y, mag: nA.mag ?? 0.9, anchor: true, at: 0 });
+        stars.push({
+          x: pA.x,
+          y: pA.y,
+          mag: nA.mag ?? 0.9,
+          anchor: true,
+          at: 0,
+        });
 
         if (a === idxOfAnchors.length - 1) break;
-        const nB = draco.spine[idxOfAnchors[a + 1]] as { section: string; mag?: number };
+        const nB = draco.spine[idxOfAnchors[a + 1]] as {
+          section: string;
+          mag?: number;
+        };
         const pB = anchorPt[nB.section];
-        const mids = draco.spine.slice(idxOfAnchors[a] + 1, idxOfAnchors[a + 1]);
+        const mids = draco.spine.slice(
+          idxOfAnchors[a] + 1,
+          idxOfAnchors[a + 1],
+        );
 
         // Sections slide sideways, so the straight line between two anchors can
         // drift right into the copy of the section it passes through. Keep the
@@ -156,17 +181,25 @@ export default function Constellation() {
       const pts = stars.map((s) => ({ x: s.x, y: s.y }));
       const cum: number[] = [0];
       for (let i = 1; i < pts.length; i++) {
-        cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+        cum.push(
+          cum[i - 1] +
+            Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y),
+        );
       }
       const total = cum[cum.length - 1] || 1;
       stars.forEach((s, i) => (s.at = cum[i] / total));
 
-      const path = pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+      const path = pts
+        .map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+        .join(" ");
 
       // head quad, out in the gutter beside the first anchor
       const first = stars[0];
       const maxDx = Math.max(...draco.head.map((h) => h.dx));
-      const headScale = Math.min(scale, (first.x - (rail ? 6 : 16)) / (maxDx || 1));
+      const headScale = Math.min(
+        scale,
+        (first.x - (rail ? 6 : 16)) / (maxDx || 1),
+      );
       const head: Star[] = draco.head.map((h) => ({
         x: first.x - h.dx * headScale,
         y: first.y + h.dy * headScale,
@@ -179,16 +212,6 @@ export default function Constellation() {
           ? `M${first.x},${first.y} L${head[0].x},${head[0].y} L${head[1].x},${head[1].y} L${head[2].x},${head[2].y} Z`
           : "";
 
-      // The lateral offsets come from CSS (`--cst-amp`), which getComputedStyle
-      // reports as a literal clamp() string — so read the amplitude back out of
-      // two anchors that actually landed on the page.
-      const aFirst = anchors[0];
-      const aLast = anchors[anchors.length - 1];
-      const dLat = (aFirst.lat - aLast.lat) * 2;
-      const ampPx =
-        dLat !== 0
-          ? (anchorPt[aFirst.section].x - anchorPt[aLast.section].x) / dLat
-          : 0;
       const camNodes = anchors.map((n) => ({
         y: anchorPt[n.section].y,
         lat: n.lat,
@@ -234,6 +257,8 @@ export default function Constellation() {
       if (!g) return;
       const vh = window.innerHeight;
       const focus = window.scrollY + vh * 0.52 - g.mainTop;
+      const maxScroll = document.documentElement.scrollHeight - vh;
+      const reachable = maxScroll + vh * 0.52 - g.mainTop;
 
       // --- camera -------------------------------------------------------
       // The figure gives every page height a lateral position. Slide the whole
@@ -241,13 +266,18 @@ export default function Constellation() {
       // and the ones around it hang off towards theirs: scrolling then reads as
       // travelling along the constellation rather than down a column.
       const nodes = g.camNodes;
+      // the focus point stops short of the last star, so squeeze the final leg
+      // into the scroll that actually remains — otherwise the camera never
+      // arrives and the last section is left off-centre
+      const lastY = Math.min(nodes[nodes.length - 1].y, reachable);
       let camLat = nodes[0].lat;
-      if (focus >= nodes[nodes.length - 1].y) {
+      if (focus >= lastY) {
         camLat = nodes[nodes.length - 1].lat;
       } else if (focus > nodes[0].y) {
         for (let i = 1; i < nodes.length; i++) {
-          if (focus <= nodes[i].y) {
-            const t = smoothstep(nodes[i - 1].y, nodes[i].y, focus);
+          const yi = i === nodes.length - 1 ? lastY : nodes[i].y;
+          if (focus <= yi) {
+            const t = smoothstep(nodes[i - 1].y, yi, focus);
             camLat = nodes[i - 1].lat + (nodes[i].lat - nodes[i - 1].lat) * t;
             break;
           }
@@ -256,14 +286,18 @@ export default function Constellation() {
       const camPx = reduceRef.current ? 0 : (camLat - 0.5) * 2 * g.ampPx;
       if (camPx !== camRef.current) {
         camRef.current = camPx;
-        document.documentElement.style.setProperty("--cst-cam", `${camPx.toFixed(1)}px`);
-        sceneRef.current?.setAttribute("transform", `translate(${(-camPx).toFixed(1)} 0)`);
+        document.documentElement.style.setProperty(
+          "--cst-cam",
+          `${camPx.toFixed(1)}px`,
+        );
+        sceneRef.current?.setAttribute(
+          "transform",
+          `translate(${(-camPx).toFixed(1)} 0)`,
+        );
       }
       // ------------------------------------------------------------------
       // the focus point can't go past the bottom of the page, so squeeze the
       // end of the figure into whatever scroll actually remains
-      const maxScroll = document.documentElement.scrollHeight - vh;
-      const reachable = maxScroll + vh * 0.52 - g.mainTop;
       const end = Math.min(g.y1, reachable);
       const p = clamp01((focus - g.y0) / (end - g.y0 || 1));
 
@@ -272,7 +306,10 @@ export default function Constellation() {
       }
       if (cometRef.current) {
         const at = pointAt(g, p * g.total);
-        cometRef.current.setAttribute("transform", `translate(${at.x} ${at.y})`);
+        cometRef.current.setAttribute(
+          "transform",
+          `translate(${at.x} ${at.y})`,
+        );
         cometRef.current.style.opacity = p > 0.002 && p < 0.998 ? "1" : "0";
       }
       g.stars.forEach((s, i) => {
@@ -280,7 +317,10 @@ export default function Constellation() {
         if (!el) return;
         const lit = smoothstep(s.at - 0.055, s.at - 0.005, p);
         const scale = 0.72 + 0.38 * lit;
-        el.setAttribute("transform", `translate(${s.x} ${s.y}) scale(${scale.toFixed(3)})`);
+        el.setAttribute(
+          "transform",
+          `translate(${s.x} ${s.y}) scale(${scale.toFixed(3)})`,
+        );
         el.style.opacity = String(0.2 + 0.8 * lit);
       });
 
@@ -293,7 +333,10 @@ export default function Constellation() {
         const el = headRefs.current[i];
         if (!el) return;
         const scale = 0.72 + 0.38 * headLit;
-        el.setAttribute("transform", `translate(${s.x} ${s.y}) scale(${scale.toFixed(3)})`);
+        el.setAttribute(
+          "transform",
+          `translate(${s.x} ${s.y}) scale(${scale.toFixed(3)})`,
+        );
         el.style.opacity = String(0.2 + 0.8 * headLit);
       });
     };
@@ -329,107 +372,116 @@ export default function Constellation() {
   }, []);
 
   return (
-    <svg
-      aria-hidden="true"
-      className="pointer-events-none absolute left-0 top-0 -z-10"
-      width={size.w || 1}
-      height={size.h || 1}
-      style={{ overflow: "visible" }}
-    >
-      <defs>
-        <radialGradient id="cst-halo" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgba(206,222,255,0.55)" />
-          <stop offset="45%" stopColor="rgba(150,178,240,0.14)" />
-          <stop offset="100%" stopColor="rgba(150,178,240,0)" />
-        </radialGradient>
-        <radialGradient id="cst-comet" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
-          <stop offset="30%" stopColor="rgba(178,205,255,0.5)" />
-          <stop offset="100%" stopColor="rgba(178,205,255,0)" />
-        </radialGradient>
-      </defs>
+    <>
+      {/* resolves --cst-amp to a real pixel width for the measurement pass */}
+      <div
+        ref={ampRef}
+        aria-hidden
+        className="pointer-events-none absolute left-0 top-0 h-0"
+        style={{ width: "var(--cst-amp)", visibility: "hidden" }}
+      />
+      <svg
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 top-0 -z-10"
+        width={size.w || 1}
+        height={size.h || 1}
+        style={{ overflow: "visible" }}
+      >
+        <defs>
+          <radialGradient id="cst-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(206,222,255,0.55)" />
+            <stop offset="45%" stopColor="rgba(150,178,240,0.14)" />
+            <stop offset="100%" stopColor="rgba(150,178,240,0)" />
+          </radialGradient>
+          <radialGradient id="cst-comet" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
+            <stop offset="30%" stopColor="rgba(178,205,255,0.5)" />
+            <stop offset="100%" stopColor="rgba(178,205,255,0)" />
+          </radialGradient>
+        </defs>
 
-      {geom ? (
-        <g ref={sceneRef}>
-          {/* the figure, dim ahead of you */}
-          <path
-            d={geom.headPath}
-            fill="none"
-            stroke="var(--constellation-line)"
-            strokeWidth={geom.scale}
-            strokeLinejoin="round"
-            opacity={0.4}
-          />
-          <path
-            d={geom.path}
-            fill="none"
-            stroke="var(--constellation-line)"
-            strokeWidth={geom.scale}
-            strokeLinecap="round"
-            opacity={0.4}
-          />
-          {/* the stretch you've already travelled */}
-          <path
-            ref={trailRef}
-            d={geom.path}
-            fill="none"
-            stroke="var(--constellation-trail)"
-            strokeWidth={1.5 * geom.scale}
-            strokeLinecap="round"
-            style={{
-              strokeDasharray: geom.total,
-              strokeDashoffset: geom.total,
-              filter: "drop-shadow(0 0 3px rgba(150,185,255,0.55))",
-            }}
-          />
-
-          {/* head quad, lit together with the start of the figure */}
-          <path
-            ref={headTrailRef}
-            d={geom.headPath}
-            fill="none"
-            stroke="var(--constellation-trail)"
-            strokeWidth={1.4 * geom.scale}
-            strokeLinejoin="round"
-            style={{
-              opacity: 0,
-              filter: "drop-shadow(0 0 3px rgba(150,185,255,0.55))",
-            }}
-          />
-          {geom.head.map((s, i) => (
-            <g
-              key={`h${i}`}
-              ref={(el) => {
-                headRefs.current[i] = el;
+        {geom ? (
+          <g ref={sceneRef}>
+            {/* the figure, dim ahead of you */}
+            <path
+              d={geom.headPath}
+              fill="none"
+              stroke="var(--constellation-line)"
+              strokeWidth={geom.scale}
+              strokeLinejoin="round"
+              opacity={0.4}
+            />
+            <path
+              d={geom.path}
+              fill="none"
+              stroke="var(--constellation-line)"
+              strokeWidth={geom.scale}
+              strokeLinecap="round"
+              opacity={0.4}
+            />
+            {/* the stretch you've already travelled */}
+            <path
+              ref={trailRef}
+              d={geom.path}
+              fill="none"
+              stroke="var(--constellation-trail)"
+              strokeWidth={1.5 * geom.scale}
+              strokeLinecap="round"
+              style={{
+                strokeDasharray: geom.total,
+                strokeDashoffset: geom.total,
+                filter: "drop-shadow(0 0 3px rgba(150,185,255,0.55))",
               }}
-              transform={`translate(${s.x} ${s.y})`}
-              style={{ opacity: 0.2 }}
-            >
-              <StarShape mag={s.mag} anchor scale={geom.scale} />
-            </g>
-          ))}
+            />
 
-          {geom.stars.map((s, i) => (
-            <g
-              key={i}
-              ref={(el) => {
-                starRefs.current[i] = el;
+            {/* head quad, lit together with the start of the figure */}
+            <path
+              ref={headTrailRef}
+              d={geom.headPath}
+              fill="none"
+              stroke="var(--constellation-trail)"
+              strokeWidth={1.4 * geom.scale}
+              strokeLinejoin="round"
+              style={{
+                opacity: 0,
+                filter: "drop-shadow(0 0 3px rgba(150,185,255,0.55))",
               }}
-              transform={`translate(${s.x} ${s.y})`}
-              style={{ opacity: 0.2, transition: "none" }}
-            >
-              <StarShape mag={s.mag} anchor={s.anchor} scale={geom.scale} />
-            </g>
-          ))}
+            />
+            {geom.head.map((s, i) => (
+              <g
+                key={`h${i}`}
+                ref={(el) => {
+                  headRefs.current[i] = el;
+                }}
+                transform={`translate(${s.x} ${s.y})`}
+                style={{ opacity: 0.2 }}
+              >
+                <StarShape mag={s.mag} anchor scale={geom.scale} />
+              </g>
+            ))}
 
-          {/* the light you're riding along the figure */}
-          <g ref={cometRef} style={{ opacity: 0 }}>
-            <circle r={16 * geom.scale} fill="url(#cst-comet)" />
-            <circle r={2.2 * geom.scale} fill="#ffffff" />
+            {geom.stars.map((s, i) => (
+              <g
+                key={i}
+                ref={(el) => {
+                  starRefs.current[i] = el;
+                }}
+                transform={`translate(${s.x} ${s.y})`}
+                style={{ opacity: 0.2, transition: "none" }}
+              >
+                <StarShape mag={s.mag} anchor={s.anchor} scale={geom.scale} />
+              </g>
+            ))}
+
+            {/* the light you're riding along the figure */}
+            <g ref={cometRef} style={{ opacity: 0 }}>
+              <circle r={16 * geom.scale} fill="url(#cst-comet)" />
+              <circle r={2.2 * geom.scale} fill="#ffffff" />
+            </g>
           </g>
-        </g>
-      ) : null}
-    </svg>
+        ) : null}
+      </svg>
+    </>
   );
 }
 
