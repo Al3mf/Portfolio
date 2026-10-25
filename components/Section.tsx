@@ -16,11 +16,15 @@ export default function Section({
   const reduce = useReducedMotion();
   const lat = sectionLateral[id];
 
-  // slide the section sideways so it lands beside its star on the figure
+  // Sit beside this section's own star, then take off the camera: the result
+  // is (lat - cameraLat), so the section is centred exactly when the scroll
+  // reaches its star and drifts away as the camera moves on.
   const slide: CSSProperties =
     lat === undefined
       ? {}
-      : { transform: `translateX(calc((${lat} - 0.5) * 2 * var(--cst-amp)))` };
+      : {
+          transform: `translateX(calc((${lat} - 0.5) * 2 * var(--cst-amp) - var(--cst-cam)))`,
+        };
 
   return (
     <section
