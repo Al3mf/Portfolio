@@ -41,6 +41,8 @@ import {
   LuShuffle,
   LuPuzzle,
   LuGauge,
+  LuSparkles,
+  LuScanFace,
 } from "react-icons/lu";
 
 /**
@@ -61,6 +63,7 @@ const ICONS: Record<string, IconType> = {
   "Swagger UI": SiSwagger,
   "REST APIs": LuRoute,
   "REST API": LuRoute,
+  "REST API Testing": LuRoute,
   Regression: LuRepeat,
   Exploratory: LuCompass,
 
@@ -89,6 +92,8 @@ const ICONS: Record<string, IconType> = {
   "Claude Code": SiClaude,
   "GitHub Copilot": SiGithubcopilot,
   "AI agents": LuBot,
+  "AI Agents": LuBot,
+  "AI-Assisted Test Automation": LuSparkles,
   "Visual Studio": TbBrandVisualStudio,
   "Google Colab": SiGooglecolab,
 
@@ -104,6 +109,7 @@ const ICONS: Record<string, IconType> = {
   "discord.js": SiDiscord,
   "Supercell API": LuRoute,
   OpenCV: SiOpencv,
+  LBPH: LuScanFace,
 };
 
 export function techIcon(name: string): IconType {
