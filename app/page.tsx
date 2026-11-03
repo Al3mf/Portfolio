@@ -3,6 +3,9 @@ import Nav from "@/components/Nav";
 import Section from "@/components/Section";
 import Pill from "@/components/Pill";
 import Constellation from "@/components/Constellation";
+import Projects from "@/components/Projects";
+import StackPills from "@/components/StackPills";
+import Education from "@/components/Education";
 import { techIcon } from "@/lib/tech-icons";
 import {
   activities,
@@ -133,80 +136,17 @@ export default function Home() {
 
         {/* Projects ---------------------------------------------------- */}
         <Section id="projects" title="Projects">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {projects.map((p) => {
-              const inner = (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[15px] font-medium text-ink">{p.name}</h3>
-                    {p.href ? (
-                      <span className="text-ink-faint transition-colors group-hover:text-ink">
-                        ↗
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-2 flex-1 text-[14px] leading-relaxed text-ink-dim">
-                    {p.blurb}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {p.stack.map((s) => (
-                      <Pill key={s} icon={techIcon(s)}>
-                        {s}
-                      </Pill>
-                    ))}
-                  </div>
-                </>
-              );
-              const cls =
-                "group flex flex-col rounded-xl border border-base-border bg-base-raised p-5 transition-colors hover:border-ink-faint";
-              return p.href ? (
-                <a
-                  key={p.name}
-                  href={p.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cls}
-                >
-                  {inner}
-                </a>
-              ) : (
-                <div key={p.name} className={cls}>
-                  {inner}
-                </div>
-              );
-            })}
-          </div>
+          <Projects
+            projects={projects}
+            pills={Object.fromEntries(
+              projects.map((p) => [p.name, <StackPills key={p.name} items={p.stack} />]),
+            )}
+          />
         </Section>
 
         {/* Education --------------------------------------------------- */}
         <Section id="education" title="Education">
-          <div className="space-y-8">
-            {education.map((e) => (
-              <div
-                key={e.school}
-                className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2"
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-base-border bg-base-raised font-mono text-[9px] font-medium tracking-tight text-ink-dim"
-                    aria-hidden
-                  >
-                    {e.short}
-                  </span>
-                  <div>
-                    <h3 className="text-[15px] font-medium text-ink">
-                      {e.school}
-                    </h3>
-                    <p className="text-[14px] text-ink-dim">{e.program}</p>
-                    <p className="text-[13px] text-ink-faint">{e.location}</p>
-                  </div>
-                </div>
-                <span className="font-mono text-[12px] text-ink-faint">
-                  {e.period}
-                </span>
-              </div>
-            ))}
-          </div>
+          <Education schools={education} />
 
           <h3 className="mb-6 mt-14 font-mono text-base font-semibold uppercase tracking-[0.14em] text-ink">
             Leadership &amp; Activities

@@ -98,3 +98,97 @@ html.lenis body {
 .lenis.lenis-stopped {
   overflow: hidden;
 }
+
+/* ---- project modal ---- */
+@keyframes cst-modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes cst-modal-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(10px) scale(0.985); }
+}
+@keyframes cst-backdrop-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cst-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+
+.cst-modal[open] .cst-modal-panel {
+  animation: cst-modal-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cst-modal[open]::backdrop {
+  animation: cst-backdrop-in 240ms ease-out;
+}
+/* 180ms: matches CLOSE_MS in components/Projects.tsx */
+.cst-modal[data-closing] .cst-modal-panel {
+  animation: cst-modal-out 180ms ease-in forwards;
+}
+.cst-modal[data-closing]::backdrop {
+  animation: cst-backdrop-out 180ms ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cst-modal[open] .cst-modal-panel,
+  .cst-modal[open]::backdrop,
+  .cst-modal[data-closing] .cst-modal-panel,
+  .cst-modal[data-closing]::backdrop {
+    animation: none;
+  }
+}
+
+/* ---- campus map (Leaflet) ---- */
+.cst-map-pin { position: relative; }
+.cst-map-pin-core,
+.cst-map-pin-halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+.cst-map-pin-core {
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  box-shadow: 0 0 10px 3px rgba(178, 205, 255, 0.9);
+}
+.cst-map-pin-halo {
+  width: 28px;
+  height: 28px;
+  background: radial-gradient(circle, rgba(178, 205, 255, 0.45) 0%, rgba(178, 205, 255, 0) 70%);
+  animation: cst-pin-pulse 2.4s ease-out infinite;
+}
+@keyframes cst-pin-pulse {
+  0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cst-map-pin-halo { animation: none; }
+}
+
+/* OSM tiles are light: flip them to a dark map. Only the tile pane — the pin
+   and controls sit in other panes and keep their real colours. */
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55);
+}
+
+/* Leaflet's controls ship light; bring them into the site's palette */
+.leaflet-container {
+  background: #0a0a0b;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background: #101012;
+  color: #e7e7e9;
+  border-bottom-color: #1e1e22;
+}
+.leaflet-bar a:hover { background: #18181b; }
+.leaflet-bar {
+  border: 1px solid #1e1e22 !important;
+  box-shadow: none !important;
+}
+.leaflet-control-attribution {
+  background: rgba(10, 10, 11, 0.75) !important;
+  color: #6a6a72;
+  font-size: 10px;
+}
+.leaflet-control-attribution a { color: #9a9aa2; }
