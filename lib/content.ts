@@ -237,6 +237,12 @@ export type School = {
   program: string;
   location: string;
   period: string;
+  /** official site */
+  website: string;
+  /** street address of the campus attended, as the school publishes it */
+  campus: string;
+  /** [lat, lng] of that campus, from OpenStreetMap */
+  coords: [number, number];
 };
 
 export const education: School[] = [
@@ -246,6 +252,9 @@ export const education: School[] = [
     program: "B.S. in Applied Computer Science",
     location: "Seattle, WA",
     period: "Expected Jul 2028",
+    website: "https://www.cityu.edu",
+    campus: "521 Wall St, Seattle, WA 98121",
+    coords: [47.61771, -122.34446],
   },
   {
     school: "Universidad Autónoma de San Luis Potosí",
@@ -253,6 +262,9 @@ export const education: School[] = [
     program: "Bachelor's in Systems Engineering",
     location: "San Luis Potosí, Mexico",
     period: "Expected Jul 2028",
+    website: "https://www.uaslp.mx",
+    campus: "Facultad de Ingeniería · Av. Dr. Manuel Nava 8, Zona Universitaria Poniente, 78290",
+    coords: [22.14444, -101.01643],
   },
   {
     school: "Universidad de Monterrey",
@@ -260,6 +272,9 @@ export const education: School[] = [
     program: "Samsung Innovation Campus 2026: AI and Leadership",
     location: "Nuevo León, Mexico",
     period: "Expected Feb 2027",
+    website: "https://www.udem.edu.mx",
+    campus: "Av. Ignacio Morones Prieto 4500 Pte., San Pedro Garza García, 66238",
+    coords: [25.66051, -100.4211],
   },
 ];
 
