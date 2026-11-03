@@ -3,6 +3,7 @@ import Nav from "@/components/Nav";
 import Section from "@/components/Section";
 import Pill from "@/components/Pill";
 import Constellation from "@/components/Constellation";
+import Projects from "@/components/Projects";
 import { techIcon } from "@/lib/tech-icons";
 import {
   activities,
@@ -133,49 +134,7 @@ export default function Home() {
 
         {/* Projects ---------------------------------------------------- */}
         <Section id="projects" title="Projects">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {projects.map((p) => {
-              const inner = (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[15px] font-medium text-ink">{p.name}</h3>
-                    {p.href ? (
-                      <span className="text-ink-faint transition-colors group-hover:text-ink">
-                        ↗
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-2 flex-1 text-[14px] leading-relaxed text-ink-dim">
-                    {p.blurb}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {p.stack.map((s) => (
-                      <Pill key={s} icon={techIcon(s)}>
-                        {s}
-                      </Pill>
-                    ))}
-                  </div>
-                </>
-              );
-              const cls =
-                "group flex flex-col rounded-xl border border-base-border bg-base-raised p-5 transition-colors hover:border-ink-faint";
-              return p.href ? (
-                <a
-                  key={p.name}
-                  href={p.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cls}
-                >
-                  {inner}
-                </a>
-              ) : (
-                <div key={p.name} className={cls}>
-                  {inner}
-                </div>
-              );
-            })}
-          </div>
+          <Projects projects={projects} />
         </Section>
 
         {/* Education --------------------------------------------------- */}
